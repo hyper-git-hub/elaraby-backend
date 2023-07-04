@@ -101,6 +101,17 @@ class CustomerPreferencesSerializer(ModelSerializer):
             'phone_no',
             'fax_no',
             'email',
-            'url'
+            'url',
+            'shift_hours',
+
+            'attendance_alerts',
+            'site_zone_violations_alerts',
+            'active_inactive_alerts',
+            
+            'daily_invoice',
+            'weekly_invoice',
+            'monthly_invoice',
+
+            'diesel_price'
         ]
 

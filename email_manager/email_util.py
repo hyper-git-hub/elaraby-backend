@@ -29,9 +29,10 @@ from hypernet.utils import async_util
 
 
 @async_util
-def extended_email_with_title(title, to_list=[], cc_list=[], bcc_list=[], email_words_dict={}, request='',
+def extended_email_with_title(title, subject, to_list=[], cc_list=[], bcc_list=[], email_words_dict={}, request='',
                               attachment=[]):
     try:
+        print('Email util working')
         email_words_dict = dict(email_words_dict)
         template_obj = Template.objects.get(email_key=title)
         if template_obj.is_active:
@@ -46,7 +47,9 @@ def extended_email_with_title(title, to_list=[], cc_list=[], bcc_list=[], email_
 
             from_email = extractTLDfromHost(str(template_obj.from_email), '[DOMAIN]', 'email_sender', request)
 
-            subject = template_obj.subject
+            print('From email:', from_email)
+            if not subject:
+                subject = template_obj.subject
 
             #subject = evariableReplace(subject, email_words_dict)
             #email_text = evariableReplace(body, email_words_dict)
@@ -56,23 +59,20 @@ def extended_email_with_title(title, to_list=[], cc_list=[], bcc_list=[], email_
             if attachment:
                 msg.attach(attachment['title'], attachment['file'], attachment['type'])
 
+            print('Message before', msg)
             #msg.content_subtype = "text/plain"
             msg.content_subtype = "html"
-            msg.send()
-            print(msg)
+            try:
+                msg.send()
+                print('Message after sending', msg)
+            except:
+                traceback.print_exc()
         if email_words_dict:
             template_obj.placeholders = '\n'.join([k for k in email_words_dict.keys()])
             template_obj.save()
 
-    except Exception as e:
-        print(traceback.print_exc(5))
-        print(str(e))
-
-
-
-def construct_url(url, id):
-    url = url + '/' + id
-    return str(url)
+    except:
+        traceback.print_exc()
 
 
 def create_default_email_template():

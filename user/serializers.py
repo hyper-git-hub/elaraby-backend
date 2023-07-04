@@ -314,6 +314,7 @@ class UserSerializer(ModelSerializer):
             'associated_entity_name',
 
             'last_user_login',
+            'android_device_info'
 
         ]
 

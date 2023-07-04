@@ -18,6 +18,8 @@ from hypernet.models import *
 from hypernet.enums import IOAOPTIONSEnum
 from hypernet.constants import *
 import datetime
+import random
+import string
 # Total animal count overall
 @exception_handler(0)
 def util_get_total_animals(customer_id):
@@ -1146,3 +1148,15 @@ def update_alert_status(id, c_id, status, m_id):
     except:
         pass
     return update_status
+
+
+def generate_word(length):
+    word = ""
+    VOWELS = "aeiou"
+    CONSONANTS = "".join(set(string.ascii_lowercase) - set(VOWELS))
+    for i in range(length):
+        if i % 2 == 0:
+            word += random.choice(CONSONANTS)
+        else:
+            word += random.choice(VOWELS)
+    return word

@@ -1,27 +1,27 @@
 from __future__ import unicode_literals
+
+import dateutil
 from django.db.models import Sum
 import itertools
 from .models import ActivityData, \
     TruckTrips, \
     LogisticsDerived, \
     LogisticMaintenance, \
-    LogisticAggregations
+    LogisticAggregations, IofShifts
 
 from hypernet.models import HypernetNotification, \
     Entity, \
     HypernetPostData, \
     DeviceCalibration, \
-    Assignment
+    Assignment, \
+    DeviceViolation
+
 from hypernet.enums import *
 from hypernet.enums import OptionsEnum, ModuleEnum
-from ioa.utils import get_data_param
-from customer.models import Customer
-from user.models import Module
-from options.models import Options
+from django.utils import timezone
+from django.db.models import Avg, Sum, Max, Min, DateTimeField, DateField, F
+from django.core.mail import send_mail, EmailMultiAlternatives
 from hypernet import constants
-from user.models import User
-from hypernet.models import DeviceType
-
 
 def get_generic_jobs(c_id, e_id, p_id, g_id, t_id, s_id, j_id, start_datetime, end_datetime):
 
@@ -141,19 +141,19 @@ def start_generic_job(c_id, e_id, start_datetime):
 def get_generic_violations(c_id, e_id, g_id, d_id, j_id, t_id, start_datetime, end_datetime):
 
     if g_id:
-        result = HypernetNotification.objects.filter(device__assignment_child__parent_id=g_id, customer__id=c_id, module_id = ModuleEnum.IOL).order_by('timestamp')
+        result = HypernetNotification.objects.filter(device__assignment_child__parent_id=g_id, customer__id=c_id)
     elif e_id:
-        result = HypernetNotification.objects.filter(device__id=e_id, customer__id=c_id, module_id = ModuleEnum.IOL).order_by('timestamp')
+        result = HypernetNotification.objects.filter(device__id=e_id, customer__id=c_id)
     elif d_id:
-        result = HypernetNotification.objects.filter(driver__id=d_id, customer__id=c_id, module_id = ModuleEnum.IOL).order_by('timestamp')
+        result = HypernetNotification.objects.filter(driver__id=d_id, customer__id=c_id)
     elif j_id:
-        result = HypernetNotification.objects.filter(job_id=j_id, customer__id=c_id, module_id = ModuleEnum.IOL).order_by('timestamp')
+        result = HypernetNotification.objects.filter(activity_id=j_id, customer__id=c_id)
     else:
-        result = HypernetNotification.objects.filter(customer_id=c_id, device__type_id=t_id, module_id = ModuleEnum.IOL).order_by('timestamp')
+        result = HypernetNotification.objects.filter(customer_id=c_id, device__type_id=t_id)
 
     if start_datetime and end_datetime:
         result = result.filter(timestamp__range=[start_datetime, end_datetime])
-    return result
+    return result.filter(type_id__in=[]).order_by('-timestamp')
 
 
 '''
@@ -195,16 +195,24 @@ def get_generic_maintenances(c_id, e_id, g_id, t_id, start_datetime, end_datetim
 
 def get_generic_fillups(c_id, e_id, g_id, t_id, start_datetime, end_datetime):
 
+    kwargs = dict()
+    kwargs['post_fill_vol__isnull'] = False
+    kwargs['pre_fill_vol__isnull'] = False
+    kwargs['customer__id'] = c_id
     if g_id:
-        fillups = LogisticsDerived.objects.filter(device__assignment_child__parent_id=g_id, post_fill_vol__isnull=False, pre_fill_vol__isnull=False, customer__id=c_id).order_by('timestamp')
+        kwargs['device__assignment_child__parent_id'] =g_id
     elif e_id:
-        fillups = LogisticsDerived.objects.filter(device__id=e_id,post_fill_vol__isnull=False, pre_fill_vol__isnull=False, customer__id=c_id).order_by('timestamp')
-    else:
-        fillups = LogisticsDerived.objects.filter(customer__id=c_id, post_fill_vol__isnull=False,pre_fill_vol__isnull=False, device__type_id=t_id).order_by('timestamp')
+        kwargs['device__id'] =e_id
+    elif t_id:
+        kwargs['device__type_id'] = t_id
+
+    fillups = LogisticsDerived.objects.filter(**kwargs).order_by('timestamp')
 
     if start_datetime and end_datetime:
         fillups = fillups.filter(timestamp__range=[start_datetime,end_datetime])
 
+    #  Now that I have all the fill ups for the respective truck, I need to find a way to delete the unnecessary records
+    #  and clean the data.
     i = 0
     pre = 0
     post = 0
@@ -212,32 +220,38 @@ def get_generic_fillups(c_id, e_id, g_id, t_id, start_datetime, end_datetime):
     fill_data = dict()
     fillup_data = []
     for f in fillups:
-        if pre == 0:
-            pre = f.pre_fill_vol
-        else:
-            if post <= f.pre_fill_vol:
-                pass
-            else:
-                #fill_data['pre_volume'] = pre
-                #fill_data['post_volume'] = post
-                #fill_data['timestamp'] = timestamp
-                #fill_data['lat'] = f.latitude
-                #fill_data['long'] = f.longitude
-                #fillup_data.append(fill_data.copy())
-                fillup_data.append({'pre_volume':pre, 'post_volume':post, 'timestamp':timestamp,
-                                    'lat':f.latitude, 'long': f.longitude})
+        if f.pre_fill_vol and f.post_fill_vol:
+            if pre == 0:  # Base condition, set the variable for next iterations
                 pre = f.pre_fill_vol
-        post = f.post_fill_vol
-        timestamp = f.timestamp
-        i += 1
-        if fillups.count() == i:
-            #fill_data['pre_volume'] = pre
-            #fill_data['post_volume'] = post
-            #fill_data['timestamp'] = timestamp
-            #fill_data['lat'] = f.latitude
-            #fill_data['long'] = f.longitude
-            #fillup_data.append(fill_data.copy())
-            fillup_data.append({'pre_volume': pre, 'post_volume': post, 'timestamp': timestamp,
+            else:
+                # Variable is set, check against post now if it is less or equal
+                if post <= f.pre_fill_vol:
+                    if (f.timestamp - timestamp).total_seconds() > 600:  # If time has passed atleast 10 minutes
+                        fillup_data.append({'pre_volume': pre, 'post_volume': post, 'timestamp': timestamp,
+                                            'lat': f.latitude, 'long': f.longitude,
+                                            'distance_travelled': f.distance_travelled,
+                                            'fuel_filled': f.fuel_consumed,
+                                            'fuel_avg': f.fuel_avg, })
+                        pre = f.pre_fill_vol
+                    else:
+                        pass
+                else:
+                    fillup_data.append({'pre_volume':pre, 'post_volume':post, 'timestamp':timestamp,
+                                        'lat':f.latitude, 'long': f.longitude,'distance_travelled':f.distance_travelled,
+                                        'fuel_filled': f.fuel_consumed,
+                                        'fuel_avg':f.fuel_avg,})
+                    pre = f.pre_fill_vol
+            post = f.post_fill_vol
+            timestamp = f.timestamp
+            i += 1
+            if fillups.count() == i:
+                fillup_data.append({'pre_volume': pre, 'post_volume': post, 'timestamp': f.timestamp,
+                                    'lat': f.latitude, 'long': f.longitude,'distance_travelled':f.distance_travelled,
+                                    'fuel_filled': f.fuel_consumed,
+                                    'fuel_avg':f.fuel_avg,})
+        else:
+            fillup_data.append({'distance_travelled':f.distance_travelled, 'fuel_filled': f.fuel_consumed,
+                                'fuel_avg':f.fuel_avg,'pre_volume': None, 'post_volume': None, 'timestamp': f.timestamp,
                                 'lat': f.latitude, 'long': f.longitude})
     return fillup_data
 
@@ -254,44 +268,49 @@ def get_generic_decantation(c_id, e_id, g_id, t_id, start_datetime, end_datetime
     if start_datetime and end_datetime:
         decants = decants.filter(timestamp__range=[start_datetime,end_datetime])
 
-    i = 0
-    pre = 0
-    post = 0
+    # i = 0
+    # pre = 0
+    # post = 0
     timestamp = None
     decant_data = dict()
     decantation_data = []
     for f in decants:
-        if pre == 0:
-            pre = f.pre_dec_vol
-        else:
-            if post >= f.pre_dec_vol:
-                pass
-            else:
-                decant_data['pre_volume'] = pre
-                decant_data['post_volume'] = post
-                decant_data['timestamp'] = timestamp
-                decantation_data.append(decant_data)
-                pre = f.pre_dec_vol
-        post = f.post_dec_vol
-        timestamp = f.timestamp
-        i += 1
-        if decants.count() == i:
-            decant_data['pre_volume'] = pre
-            decant_data['post_volume'] = post
-            decant_data['timestamp'] = timestamp
-            decantation_data.append(decant_data)
+        decant_data['pre_volume'] = f.pre_dec_vol
+        decant_data['post_volume'] = f.post_dec_vol
+        decant_data['timestamp'] = f.timestamp
+        decantation_data.append(decant_data)
+        decant_data = dict()
+        # if pre == 0:
+        #     pre = f.pre_dec_vol
+        # else:
+        #     if post >= f.pre_dec_vol:
+        #         pass
+        #     else:
+        #         decant_data['pre_volume'] = pre
+        #         decant_data['post_volume'] = post
+        #         decant_data['timestamp'] = timestamp
+        #         decantation_data.append(decant_data)
+        #         pre = f.pre_dec_vol
+        # post = f.post_dec_vol
+        # timestamp = f.timestamp
+        # i += 1
+        # if decants.count() == i:
+        #     decant_data['pre_volume'] = pre
+        #     decant_data['post_volume'] = post
+        #     decant_data['timestamp'] = timestamp
+        #     decantation_data.append(decant_data)
     return decantation_data
 
 
-def get_generic_device_aggregations(c_id, e_id, g_id, t_id):
-
+def get_generic_device_aggregations(c_id, e_id, g_id, t_id, truck_ids=None):
     if g_id:
         result = LogisticAggregations.objects.filter(device__assignment_child__parent_id=g_id, customer__id=c_id)
     elif e_id:
         result = LogisticAggregations.objects.get(device__id=e_id, customer__id=c_id)
     else:
         result = LogisticAggregations.objects.filter(device__type_id=t_id, customer__id =c_id)
-
+    if truck_ids:
+        result = LogisticAggregations.objects.filter(device__id__in=truck_ids, customer__id=c_id)
     return result
 
 
@@ -305,7 +324,7 @@ def get_generic_distance_travelled(c_id, e_id, g_id, t_id, start_datetime, end_d
 
     if start_datetime and end_datetime:
         result = result.filter(timestamp__range=[start_datetime, end_datetime])
-    return result.aggregate(Sum('distance_travelled'))['distance_travelled__sum']
+    return result.aggregate(Sum('distance_travelled'))['distance_travelled__sum'] or 0
 
 
 def get_generic_volume_consumed(c_id, e_id, g_id, t_id, start_datetime, end_datetime):
@@ -319,15 +338,19 @@ def get_generic_volume_consumed(c_id, e_id, g_id, t_id, start_datetime, end_date
 
     if start_datetime and end_datetime:
         result = result.filter(timestamp__range=[start_datetime, end_datetime])
-    return result.aggregate(Sum('volume_consumed'))['volume_consumed__sum']
+    return result.aggregate(Sum('volume_consumed'))['volume_consumed__sum'] or 0
 
 
-def get_generic_devices(c_id, e_id, t_id):
+def get_generic_devices(c_id, e_id, t_id, client_id=None, truck_ids=None):
     if e_id:
-        result = Entity.objects.get(id = e_id,customer__id=c_id, status__in=[OptionsEnum.ACTIVE,OptionsEnum.INACTIVE])
+        result = Entity.objects.get(id = e_id,customer__id=c_id, status_id__in=[OptionsEnum.ACTIVE,OptionsEnum.INACTIVE])
+    elif client_id:
+        result = Entity.objects.filter(client__name=client_id, customer__id=c_id, status_id__in=[OptionsEnum.ACTIVE,OptionsEnum.INACTIVE]).distinct().order_by('-created_datetime')
+    elif truck_ids:
+        result = Entity.objects.filter(id__in=truck_ids, customer__id=c_id, status_id__in=[OptionsEnum.ACTIVE,OptionsEnum.INACTIVE])
     else:
         result = Entity.objects.filter(customer_id=c_id, type_id=t_id,
-                                       status__in=[OptionsEnum.ACTIVE, OptionsEnum.INACTIVE])
+                                       status_id__in=[OptionsEnum.ACTIVE, OptionsEnum.INACTIVE]).distinct().order_by('-created_datetime')
 
     return result
 
@@ -466,4 +489,97 @@ def get_maintenance_details(c_id, e_id, m_type_id, start_datetime, end_datetime)
 
     return maintenances
 
+
+def calculate_fuel_avgs(truck, fuel_consumed,fillup_time):
+
+    result = {}
+    last_agg = None
+    flag = True
+
+    if not fillup_time:
+        fillup_time = timezone.now()
+    try:
+        last_agg = LogisticAggregations.objects.get(device = truck)
+    except last_agg.DoesNotExist:
+        last_agg = LogisticAggregations.objects.create(device=truck,
+                                            customer=truck.customer,
+                                            module=truck.module,
+                                            timestamp = timezone.now(),
+                                            last_fillup=fillup_time)
+        flag = False
+    if last_agg:
+
+        #last_fillup = last_agg.last_fillup if last_agg.last_fillup else timezone.now()
+
+        if not last_agg.last_fillup:
+            last_agg.last_fillup = timezone.now()
+            last_agg.save()
+        result = fillup_summary(truck, last_agg, fillup_time, fuel_consumed)
+    return result, flag
+
+
+def fillup_summary(truck, last_agg, fillup_time, fuel_consumed):
+    result = dict()
+    data_pts = HypernetPostData.objects.filter(device_id=truck, timestamp__range=[last_agg.last_fillup, fillup_time])
+    
+    total_fuel_consumed = fuel_consumed
+    total_distance = data_pts.aggregate(sum=Sum('distance_travelled'))
+    if not total_distance['sum']:
+        total_distance['sum'] = 0
+    total_distance = float(total_distance['sum']) / 1000
+    fuel_avg = total_distance / float(total_fuel_consumed)
+    
+    result['distance'] = total_distance
+    result['total_fuel_consumed'] = total_fuel_consumed
+    result['fuel_avg'] = fuel_avg
+    
+    return result
+
+def create_fillup_data(result,truck,customer_id, module_id, latitude,longitude, flag, fillup_time):
+    from django.utils.timezone import make_aware
+    import traceback
+    from dateutil.parser import parse
+    fillup = LogisticsDerived (
+        device = truck,
+        customer_id = customer_id,
+        module_id = module_id,
+        latitude = latitude,
+        longitude = longitude,
+        fuel_avg = result['fuel_avg'],
+        fuel_consumed = result['total_fuel_consumed'],
+        distance_travelled = result['distance'],
+        timestamp = fillup_time,
+    )
+    fillup.save()
+
+    send_mail('Staging Truck Fillup',
+              'Truck: ' + fillup.device.name + ' filled at: ' + str(
+                  fillup.timestamp) + '. Location: https://www.google.com/maps/search/?api=1&query=' + str(
+                  fillup.latitude) + ',' + str(fillup.longitude) +
+              '. Fuel filled: ' + str(fillup.fuel_consumed),
+              'support@hypernymbiz.com',
+              constants.email_list, fail_silently=True)
+    try:
+        last_fillup =LogisticAggregations.objects.get(device=truck)
+        print(flag)
+
+        if flag is True:
+            fillup_time = parse(fillup_time)
+
+            print("Fillup time",fillup_time)
+            print("Fillup time type",type(fillup_time))
+
+            l_fillup = last_fillup.last_fillup
+            l_fillup = l_fillup.replace(tzinfo=None)
+
+            print("Last fillup", l_fillup)
+            print("Last fillup Type", type(l_fillup))
+
+            if fillup_time > l_fillup:
+                print("Fillup time greater than last fillup")
+                last_fillup.last_fillup = fillup_time
+                last_fillup.save()
+    except:
+        last_fillup=None
+        print(traceback.print_exc())
 

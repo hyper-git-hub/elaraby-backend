@@ -3,7 +3,6 @@ from ioa.function_views import *
 import backend.settings as settings
 
 
-
 urlpatterns =[
 
     # ALERTS
@@ -18,6 +17,9 @@ urlpatterns =[
 
     url(r'^update_alert_flag_status/', update_alert_flag),
     url(r'^update_alert_statues/', update_alerts_status),
+    url(r'^create_entitites/', create_entitites),
+    url(r'^create_devices/', create_devices),
+    url(r'^alter_suez_data/', alter_suez_data),
 
 
     url(r'^get_scheduling_form_data/', get_scheduling_form_data),

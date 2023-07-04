@@ -77,6 +77,22 @@ class CustomerPreferences(models.Model):
     fax_no = models.TextField(null=True, blank=True)
     email = models.TextField(null=True, blank=True)
     url = models.TextField(null=True, blank=True)
+    invoice_number = models.IntegerField(default=1 ,blank=True, null=True)
+    invoice_number22 = models.IntegerField(default=1 ,blank=True, null=True)
+    shift_hours = models.IntegerField(null=True, blank=True, default=0)
+
+    #FFP related
+    attendance_alerts = models.BooleanField(default=True)
+    site_zone_violations_alerts = models.BooleanField(default=True)
+    active_inactive_alerts = models.BooleanField(default=True)
+    
+    # Invoice generation
+    daily_invoice = models.BooleanField(default=False)
+    weekly_invoice = models.BooleanField(default=False)
+    monthly_invoice = models.BooleanField(default=True)
+
+    #Diesel Cost (per litre)
+    diesel_price = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return self.customer.name + "'s  " + "Preferences"
@@ -99,6 +115,7 @@ class CustomerClients(models.Model):
     modified_datetime = models.DateTimeField(blank=True, null=True)
     end_datetime = models.DateTimeField(blank=True, null=True)
 
+
     def __str__(self):
         if self.party_code:
             return self.party_code+' - ( '+self.name+' )'
@@ -108,3 +125,24 @@ class CustomerClients(models.Model):
     def get_delete_name(self):
        return str(self.name + " - "+self.party_code)
 
+    
+    def as_json(self):
+        return {
+            "id": self.id,
+            "label": self.name,
+            "contact_number": self.contact_number,
+            'email': self.email,
+            'description': self.description,
+            'address': self.address,
+            'modified_by': self.modified_by.id,
+            'created_datetime': self.created_datetime,
+            'modified_datetime': self.modified_datetime,
+            'end_datetime': self.end_datetime,
+            'status_id': self.status.id,
+            'party_code': self.party_code,
+            'status_label': self.status.label,
+            'modified_by_name': self.modified_by.first_name,
+            'modified_by_email': self.modified_by.email,
+            'bin_count': self.hypernet_clients.filter(type__id=21).count()
+        }
+        

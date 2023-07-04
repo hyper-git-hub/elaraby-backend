@@ -1,10 +1,10 @@
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view
+
 from .utils import *
 import hypernet.utils as h_utils
 from hypernet.constants import *
 from hypernet.utils import exception_handler, generic_response
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
-
 
 @csrf_exempt
 @api_view(['PATCH'])
@@ -58,3 +58,41 @@ def update_alert_status(request):
     else:
         response_body[RESPONSE_DATA] = TEXT_PARAMS_INCORRECT
     return generic_response(response_body=response_body, http_status=200)
+
+
+@api_view(['GET'])
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def update_notifications_count(request):
+    response = {RESPONSE_STATUS: STATUS_OK, RESPONSE_MESSAGE: "", RESPONSE_DATA: []}
+    user = h_utils.get_user_from_request(request, None)
+    c_id = h_utils.get_customer_from_request(request, None)
+    m_id = h_utils.get_module_from_request(request, None)
+    u_id = h_utils.get_user_from_request(request, None).id
+    http_status = HTTP_SUCCESS_CODE
+    if user:
+        try:
+            firebase = pyrebase.initialize_app(settings.config_firebase)
+            db = firebase.database()
+
+        except:  # TODO Find Exception sets of FireBase Connections.
+            traceback.print_exc()
+            db = None
+
+        if db:
+            try:
+                db.child(str(user.email).replace('.', '-')).set(0)
+                alert_status = update_alert_flag_status(u_id, c_id, m_id)
+                response[RESPONSE_MESSAGE] = TEXT_SUCCESSFUL
+                response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+                return generic_response(response_body=response, http_status=http_status)
+
+            except:
+                traceback.print_exc()
+                response[RESPONSE_MESSAGE] = USER_DOES_NOT_EXIST
+                response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+                return generic_response(response_body=response, http_status=http_status)
+
+    else:
+        response[RESPONSE_MESSAGE] = NOT_ALLOWED
+        response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+        return generic_response(response_body=response, http_status=http_status)

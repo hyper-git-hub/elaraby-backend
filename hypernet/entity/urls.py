@@ -3,6 +3,11 @@ from .temp import *
 from django.conf.urls import url, include
 urlpatterns = [
     url(r'^add_new_entity', add_entity),
+
+    url(r'^add_new_iop_device', add_iop_device),
+
+    url(r'^add_multiple_entities', add_multiple_entities),
+    url(r'^multiple_addition_without_tags', add_multiple_entities_without_tags),
     url(r'^edit_entity', edit_entity),
     url(r'^fetch_entity', fetch_entity),
     url(r'^delete_entity', delete_entity),
@@ -35,13 +40,28 @@ urlpatterns = [
     #NEW DROPDOWN CALL FOR UNASSIGNED ASSETS
     url(r'^get_unassigned_entity_dropdown', get_unassigned_entity_dropdown),
     url(r'^get_contract_details_dropdown', get_contract_details_dropdown),
-    
+
+    url(r'^get_unassigned_zones_sites', get_unassigned_zones_sites),
+    url(r'^get_zones_or_sites_unassigned', get_unassigned_zones_or_sites_dropdown),
+
     url(r'^get_contracts_list', get_contracts_list),
     url(r'^invoice_listing_filters', invoice_listing_filters),
+    url(r'^get_counts_listing', get_counts_listing),
+    url(r'^get_maintenance_summary_counts', get_maintenance_summary_counts),
+
+
+    url(r'^get_contracts_from_clients', get_contracts_from_clients),
+    url(r'^get_areas_from_contracts', get_areas_from_contract),
+    url(r'^get_material_for_skip', get_material_for_skip),
 
 
 
     url(r'^V2/', include('hypernet.entity.job_V2.urls')),
+    url(r'^maintenances/', include('hypernet.entity.maintenances.urls')),
+
+    # change device enabled
+    url(r'^change_status', change_status_entity),
+
 ]
 
 

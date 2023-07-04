@@ -1,4 +1,6 @@
 import traceback
+
+import pyrebase
 from django.db.models.signals import post_save
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from rest_framework.decorators import api_view, APIView, permission_classes
@@ -7,35 +9,47 @@ from rest_framework.permissions import AllowAny
 from iof.models import ActivityData, Activity, IofShifts
 from ioa.serializer import *
 from hypernet.constants import *
-from hypernet.models import Assignment, HypernetNotification, Entity
-from hypernet.notifications.utils import update_alert_flag_status
+from hypernet.models import Assignment, HypernetNotification, Entity, HypernetPostData
+from hypernet.notifications.utils import update_alert_flag_status, util_user_notifications
 from hypernet.enums import *
 
+from backend import settings
 from customer.models import CustomerPreferences
 from hypernet.enums import DeviceTypeEntityEnum, OptionsEnum
 from iof.generic_utils import get_generic_jobs, \
     get_generic_distance_travelled, \
     get_generic_volume_consumed, get_generic_device_aggregations
-
+from iof.serializers import BinCollectionDataSerializer
 from iof.utils import get_entity, get_activites, create_activity_data, get_time_info, \
     create_bin_collection_data, waste_collection_management, driver_shift_management, \
     util_create_incident_reporting, create_child_parent_assigment, \
     bin_collection_management, verification_management, \
     incident_reporting_list, update_bin_statuses, check_entity_on_current_shift, \
     check_entity_on_activity, driver_shift_management_simplified, update_skip_weight, check_shift_on_truck, \
-    check_activity_on_truck
+    get_shift_truck_of_driver, waste_collection_management_withou_rfid, driver_shift_management_revised, \
+    report_bin_maintenance, calculate_fuel_cost, calculate_labour_cost, calculate_trip_revenue, \
+    calculate_trip_waste_collected, collect_package, start_e2e_collection
 
 from hypernet.notifications.utils import send_action_notification, send_notification_to_admin, save_users_group
 from hypernet.utils import *
 from options.models import Options
 # Create your views here.
 from django.utils import timezone
-from hypernet.entity.job_V2.utils import util_upcoming_activities
+from hypernet.entity.job_V2.utils import util_upcoming_activities, util_get_bins_collection_data
 from iof.utils import append_activity, get_schedule_type
-from django.db.models import F
+from django.db.models import F, Sum
 from hypernet.entity.job_V2.utils import util_get_bins_location
-from hypernet.serializers import DriverSerializer
+from hypernet.serializers import DriverSerializer, TruckSerializer
 from django.dispatch import receiver
+from django.contrib.auth import authenticate
+from rest_framework.authtoken.models import Token
+from user.serializers import UserLoginSerializer
+from user.models import User, ModuleAssignment
+from customer.serializers import CustomerListSerializer
+from rest_framework.response import Response
+
+
+
 @api_view(['GET'])
 @exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
 def get_app_jobs(request):
@@ -48,24 +62,33 @@ def get_app_jobs(request):
     temp_list = []
     completed = []
     failed = []
-    upcoming = []
     if c_id and user:
         if j_id:
-            obj = get_activites(j_id, None, c_id, [IOFOptionsEnum.PENDING, IOFOptionsEnum.REVIEWED,
+            try:
+                obj = get_activites(j_id, None, c_id, [IOFOptionsEnum.PENDING, IOFOptionsEnum.REVIEWED,
                                                    IOFOptionsEnum.ACCEPTED, IOFOptionsEnum.RUNNING, IOFOptionsEnum.SUSPENDED,
                                                    IOFOptionsEnum.RESUMED, IOFOptionsEnum.COMPLETED, IOFOptionsEnum.ABORTED, IOFOptionsEnum.REJECTED]) #redundant checks because this util is being used in other places.
+            except:
+                http_status = HTTP_SUCCESS_CODE
+                response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+                response[RESPONSE_MESSAGE] = TEXT_OPERATION_UNSUCCESSFUL
+                response[RESPONSE_MESSAGE] = "Activity not valid"
+                return generic_response(response_body=response, http_status=http_status)
+            
             if obj.activity_status_id not in [IOFOptionsEnum.REJECTED, IOFOptionsEnum.FAILED]:
                 result['activity_type'] = obj.activity_schedule.activity_type.label if obj.activity_schedule.activity_type else None
                 result['activity_status'] = obj.activity_status.label if obj.activity_status else None
                 result['assigned_truck'] = obj.primary_entity.name if obj.primary_entity else None
                 result['schedule_type'] = get_schedule_type(obj)
-                result['activity_time'] = obj.activity_schedule.activity_start_time
+                result['activity_time'] = obj.activity_start_time
+                result['activity_date'] = obj.created_datetime.date()
+                # result['activity_date'] = obj.activity_schedule.start_date
                 result['check_point_name'] = obj.activity_check_point.name if obj.activity_check_point else None
                 result['check_point_lat_long'] = obj.activity_check_point.source_latlong if obj.activity_check_point else None
                 result['end_point_name'] = obj.activity_end_point.name if obj.activity_end_point else None
                 result['end_point_lat_long'] = obj.activity_end_point.source_latlong if obj.activity_end_point else None
                 result['duration'] = int(obj.duration) if obj.duration else None
-                result['action_items'] = util_get_bins_location(obj.action_items, obj.id)
+                result['action_items'] = util_get_bins_location(None, obj.id)
                 response[RESPONSE_DATA] = result
                 http_status = HTTP_SUCCESS_CODE
                 response[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
@@ -73,7 +96,7 @@ def get_app_jobs(request):
             else:
                 http_status = HTTP_SUCCESS_CODE
                 response[RESPONSE_STATUS] = HTTP_ERROR_CODE
-                response[RESPONSE_MESSAGE] = TEXT_OPERATION_UNSUCCESSFUL
+                # response[RESPONSE_MESSAGE] = TEXT_OPERATION_UNSUCCESSFUL
                 response[RESPONSE_MESSAGE] = "Activity not valid"
         else:
             c_activity = get_activites(None, d_id, c_id, [IOFOptionsEnum.COMPLETED])
@@ -138,10 +161,12 @@ def get_driver_info(request):
 def get_notifications(request):
     response = {RESPONSE_STATUS: STATUS_OK, RESPONSE_MESSAGE: "", RESPONSE_DATA: []}
     c_id = get_customer_from_request(request, None)
-    d_id = get_default_param(request, 'driver_id', None)
     m_id = get_module_from_request(request, None)
     u_id = get_user_from_request(request, None).id
     type = get_list_param(request, 'type', None)
+    #print(len(type))
+    start_datetime = get_default_param(request, 'start_datetime', None)
+    end_datetime = get_default_param(request, 'end_datetime', None)
     list = []
 
     http_status = HTTP_SUCCESS_CODE
@@ -152,19 +177,26 @@ def get_notifications(request):
             response[RESPONSE_MESSAGE] = USER_DOES_NOT_EXIST
             response[RESPONSE_STATUS] = HTTP_ERROR_CODE
             return generic_response(response_body=response, http_status=http_status)
-        violations = HypernetNotification.objects.filter(user=user).order_by('-created_datetime')
+        violations = HypernetNotification.objects.filter(user=user, customer_id = c_id).order_by('-created_datetime')
+
         if type:
             violations = violations.filter(type_id__in=type)
-        alert_status = update_alert_flag_status(u_id, c_id, m_id)
+        #alert_status = update_alert_flag_status(u_id, c_id, m_id)
+
+        if start_datetime and end_datetime:
+            violations = violations.filter(timestamp__range=[start_datetime,end_datetime])
+
+        if not start_datetime and not end_datetime and not type:
+            violations = violations.filter(timestamp__date = timezone.now().date())
         for obj in violations:
             noti_dic = obj.as_job_notification_json()
             noti_dic['minutes_ago'] = get_time_info(obj.created_datetime)
             list.append(noti_dic)
-        if alert_status:
-            http_status = 200
-            response[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
-            response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
-            response[RESPONSE_DATA] = list
+
+        http_status = HTTP_SUCCESS_CODE
+        response[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
+        response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+        response[RESPONSE_DATA] = list
     else:
         response[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
         response[RESPONSE_STATUS] = HTTP_ERROR_CODE
@@ -211,7 +243,6 @@ class MaintenanceUpdate(APIView):
                     http_status = 200
                     response[RESPONSE_STATUS] = STATUS_OK
         except Exception as e:
-            print(e)
             http_status = 400
             response[RESPONSE_STATUS] = STATUS_ERROR
 
@@ -264,11 +295,14 @@ def get_app_maintenances(request):
                 maintenances = Entity.objects.filter(type = DeviceTypeEntityEnum.MAINTENANCE, status_id = OptionsEnum.ACTIVE,
                                                      job_status__id = IOFOptionsEnum.MAINTENANCE_DUE )
 
+
                 for obj in maintenances:
                     try:
                        truck = Assignment.objects.get(parent__type=DeviceTypeEntityEnum.TRUCK,
                                                status_id=OptionsEnum.ACTIVE,
                                                child_id=obj.id).parent.name
+
+
 
                     except:
                         truck = None
@@ -320,14 +354,14 @@ class DriverJobUpdate(APIView):
         if flag and driver_id:
             try:
                 preferences = CustomerPreferences.objects.get(customer_id=customer_id)
-                assigned_truck = activity.primary_entity.id
+                check, assigned_truck = get_shift_truck_of_driver(None, driver_id)
 
                 if int(flag) == IOFOptionsEnum.FAILED:
                    try:
                         if activity.activity_status.id == IOFOptionsEnum.RUNNING or activity.activity_status.id == IOFOptionsEnum.ACCEPTED:
                             activity.activity_status = Options.objects.get(id=IOFOptionsEnum.FAILED)
                             activity.end_lat_long = lat_long
-                            activity_data = create_activity_data(job_id, assigned_truck, driver_id, timestamp,
+                            activity_data = create_activity_data(job_id, assigned_truck.id, driver_id, timestamp,
                                                                  IOFOptionsEnum.FAILED, lat_long, None,
                                                                  customer_id, module)
 
@@ -338,7 +372,7 @@ class DriverJobUpdate(APIView):
                                 activity_data.notes = remarks
                                 activity_data.save()
 
-                            send_notification_to_admin(assigned_truck, activity.actor.id, activity.id, activity,
+                            send_notification_to_admin(assigned_truck.id, activity.actor.id, activity.id, activity,
                                                        [activity.activity_schedule.modified_by.id],
                                                            user.associated_entity.name + " Failed the activity " +
                                                            activity.activity_schedule.activity_type.label + " Please review.",
@@ -349,9 +383,9 @@ class DriverJobUpdate(APIView):
                                                                                  IOFOptionsEnum.NOTIFICATION_DRIVER_START_ACTIVITY]).update(status_id = OptionsEnum.INACTIVE)
 
 
-                            if (activity.activity_schedule.end_date is None) or (activity.activity_schedule.end_date <= timezone.now().date()):
-                                activity.activity_schedule.schedule_activity_status = Options.objects.get(id=OptionsEnum.INACTIVE)
-                                activity.activity_schedule.save()
+                           # if (activity.activity_schedule.end_date is None) or (activity.activity_schedule.end_date <= timezone.now().date()):
+                            #    activity.activity_schedule.schedule_activity_status = Options.objects.get(id=OptionsEnum.INACTIVE)
+                             #   activity.activity_schedule.save()
                             activity.notification_sent = False
                         else:
                             http_status = 200
@@ -366,10 +400,10 @@ class DriverJobUpdate(APIView):
 
                 elif int(flag) == IOFOptionsEnum.ACCEPTED:
                     try:
-                        if activity.activity_status.id == IOFOptionsEnum.REVIEWED:
+                        if activity.activity_status.id == IOFOptionsEnum.REVIEWED or activity.activity_status.id == IOFOptionsEnum.PENDING:
                             activity.activity_status = Options.objects.get(id=IOFOptionsEnum.ACCEPTED)
                             # activity.lat_long = lat_long
-                            activity_data = create_activity_data(job_id, assigned_truck, driver_id, timestamp,
+                            activity_data = create_activity_data(job_id, assigned_truck.id, driver_id, timestamp,
                                                              IOFOptionsEnum.ACCEPTED, lat_long, None, customer_id, module)
                             activity_data.save()
 
@@ -379,7 +413,7 @@ class DriverJobUpdate(APIView):
                                 activity_data.save()
 
                             if preferences.activity_accept is True:
-                                send_notification_to_admin(assigned_truck,activity.actor.id,activity.id,activity,[activity.activity_schedule.modified_by.id],
+                                send_notification_to_admin(assigned_truck.id,driver_id,activity.id,activity,[activity.activity_schedule.modified_by.id],
                                                            user.associated_entity.name + " Accepted the activity " + str(
                                                            activity.activity_schedule.activity_type.label),
                                                             IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_ACCEPT,None)
@@ -405,7 +439,7 @@ class DriverJobUpdate(APIView):
                         if activity.activity_status.id in [IOFOptionsEnum.REVIEWED, IOFOptionsEnum.ACCEPTED]:
                             activity.activity_status = Options.objects.get(id=IOFOptionsEnum.REJECTED)
 
-                            activity_data = create_activity_data(job_id, assigned_truck, driver_id, timestamp,
+                            activity_data = create_activity_data(job_id, assigned_truck.id, driver_id, timestamp,
                                                              IOFOptionsEnum.REJECTED, lat_long, None, customer_id, module)
                             activity_data.save()
                             if remarks:
@@ -413,7 +447,7 @@ class DriverJobUpdate(APIView):
                                 activity_data.notes = remarks
                                 activity_data.save()
 
-                            send_notification_to_admin(assigned_truck, activity.actor.id, activity.id, activity,
+                            send_notification_to_admin(assigned_truck.id, driver_id, activity.id, activity,
                                                         [activity.activity_schedule.modified_by.id],
                                                         user.associated_entity.name + " Rejected the activity " + activity.activity_schedule.activity_type.label,
                                                         IOFOptionsEnum.NOTIFICATION_ADMIN_ACTIVITY_REVIEW_DRIVER_REJECT, None)
@@ -520,7 +554,7 @@ class DriverJobUpdate(APIView):
 
                     try:
                         try:
-                            status = get_generic_device_aggregations(customer_id, assigned_truck, None, None)
+                            status = get_generic_device_aggregations(customer_id, assigned_truck.id, None, None)
                         except:
                             response[RESPONSE_MESSAGE] = TRUCK_DATA_DOES_NOT_EXIST
                             http_status = 200
@@ -561,25 +595,25 @@ class DriverJobUpdate(APIView):
 
                         result = dict()
                         for id in activity.action_items.split(','):    #TODO. Check if this bin has already an uncollected row. (Place under try catch)
-                            try:
-                                contract = Assignment.objects.get(parent_id = id, child__type_id = DeviceTypeEntityEnum.CONTRACT,
-                                                                  status_id = OptionsEnum.ACTIVE).child_id
-                                try:
-                                    area = Assignment.objects.get(child_id = contract,
-                                                                  parent__type_id = DeviceTypeEntityEnum.AREA,
-                                                                  status_id = OptionsEnum.ACTIVE).parent_id
-                                except:
-                                    area = None
-                            except:
-                                contract = None
-                                area = None
-                            try:
-                                client = Entity.objects.get(id=id).client.id
-                            except:
-                                client = None
+                            # try:
+                            #     contract = Assignment.objects.get(parent_id = id, child__type_id = DeviceTypeEntityEnum.CONTRACT,
+                            #                                       status_id = OptionsEnum.ACTIVE).child_id
+                            #     try:
+                            #         area = Assignment.objects.get(child_id = contract,
+                            #                                       parent__type_id = DeviceTypeEntityEnum.AREA,
+                            #                                       status_id = OptionsEnum.ACTIVE).parent_id
+                            #     except:
+                            #         area = None
+                            # except:
+                            #     contract = None
+                            #     area = None
+                            # try:
+                            #     client = Entity.objects.get(id=id).client.id
+                            # except:
+                            #     client = None
                             bin_collection_data = create_bin_collection_data(job_id, shift.parent.id, shift.child.id,
                                                                              timestamp, IOFOptionsEnum.UNCOLLECTED, id,
-                                                                             customer_id, module, contract, client, area)
+                                                                             customer_id, module)
                             bin_collection_data.save()
                         if activity.activity_schedule.action_items:
                             result['bins_list'] = activity.activity_schedule.action_items
@@ -616,6 +650,7 @@ class DriverJobUpdate(APIView):
                             response[RESPONSE_STATUS] = 500
                             response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
                             return generic_response(response_body=response, http_status=http_status)
+
                         activity.activity_status = Options.objects.get(id=IOFOptionsEnum.COMPLETED)
                         activity.end_datetime = timestamp
                         activity.end_lat_long = lat_long
@@ -627,15 +662,21 @@ class DriverJobUpdate(APIView):
                             activity.notes = remarks
                             a_data.notes = remarks
                             a_data.save()
-                        job_distance = get_generic_distance_travelled(customer_id, assigned_truck, None, None,
+                        job_distance = get_generic_distance_travelled(customer_id, shift.parent.id, None, None,
                                                                       activity.start_datetime,
                                                                       timestamp)
                         if job_distance is None:
                             job_distance = 0
+                        else:
+                            job_distance = job_distance/1000
 
-                        job_volume_consumed = get_generic_volume_consumed(customer_id, assigned_truck, None, None,
+                        job_volume_consumed = get_generic_volume_consumed(customer_id, shift.parent.id, None, None,
                                                                           activity.start_datetime,
                                                                           timestamp)
+
+                        #Costs being calculated
+
+
                         if job_volume_consumed is None:
                             job_volume_consumed = 0
 
@@ -646,6 +687,35 @@ class DriverJobUpdate(APIView):
                         activity.volume_consumed = job_volume_consumed
                         activity.save()
                         a_data.save()
+
+                        fuel_cost = calculate_fuel_cost(shift.parent, job_volume_consumed)
+                        labour_cost = calculate_labour_cost(shift.child, duration)
+
+                        a_data_fuel_cost = create_activity_data(job_id, shift.parent.id, shift.child.id, timestamp,
+                                                      IOFOptionsEnum.FUEL_COST, lat_long, None, customer_id, module, cost = fuel_cost)
+
+
+                        a_data_labour_cost = create_activity_data(job_id, shift.parent.id, shift.child.id, timestamp,
+                                                      IOFOptionsEnum.LABOUR_COST, lat_long, None, customer_id, module, cost = labour_cost)
+
+                        a_data_fuel_cost.save()
+                        a_data_labour_cost.save()
+
+
+                        activity.trip_cost = a_data_fuel_cost.cost + a_data_labour_cost.cost
+
+                        activity.trip_revenue = calculate_trip_revenue(job_id)
+
+                        activity.waste_collected = calculate_trip_waste_collected(job_id)
+
+                        activity.diesel_price = preferences.diesel_price
+
+                        if job_distance == 0  or job_volume_consumed == 0:
+                            activity.fuel_avg = 0
+                        else:
+                            activity.fuel_avg = job_distance/job_volume_consumed
+
+                        activity.save()
 
                         result[
                             'job_name'] = activity.activity_schedule.activity_type.label if activity.activity_schedule.activity_type else None
@@ -666,7 +736,6 @@ class DriverJobUpdate(APIView):
                             job_end_lat, job_end_lng = activity.end_lat_long.split(",")
                             result['activity_end_lat'], result['activity_end_lng'] = float(job_end_lat), float(
                                 job_end_lng)
-
                         response[RESPONSE_MESSAGE] = "Job has ended"
 
                         if preferences.activity_end:
@@ -686,6 +755,78 @@ class DriverJobUpdate(APIView):
                         http_status = HTTP_ERROR_CODE
                         response[RESPONSE_STATUS] = STATUS_ERROR
 
+                elif int(flag) == IOFOptionsEnum.TRIP_INCREMENT:
+                    try:
+                        try:
+                            shift = IofShifts.objects.get(child_id=driver_id, shift_end_time__isnull=True)
+                        except:
+                            # traceback.print_exc()
+                            response[RESPONSE_MESSAGE] = START_SHIFT
+                            http_status = 200
+                            response[RESPONSE_STATUS] = 500
+                            response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
+                            return generic_response(response_body=response, http_status=http_status)
+
+                        activity.trips += 1
+                        activity_data = create_activity_data(job_id, shift.parent.id, shift.child.id, timestamp,
+                                                         IOFOptionsEnum.TRIP_INCREMENT, lat_long, None, customer_id, module)
+                        activity_data.save()
+
+                        if remarks:
+                            activity.notes = remarks
+                            activity_data.notes = remarks
+                            activity_data.save()
+
+                        # Activate notification when adding this type as notification for trips.
+                        # if preferences.activity_suspend:
+                        #     send_notification_to_admin(shift.parent.id, shift.child.id, activity.id, activity,
+                        #                            [activity.activity_schedule.modified_by.id],
+                        #                                shift.child.name + " Suspended the activity " +
+                        #                                activity.activity_schedule.activity_type.label,
+                        #                                IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SUSPEND,None
+                        #                            )
+
+                    except Exception as e:
+                        traceback.print_exc()
+                        http_status = HTTP_ERROR_CODE
+                        response[RESPONSE_STATUS] = STATUS_ERROR
+                
+                elif int(flag) == IOFOptionsEnum.TRIP_DECREMENT:
+                    try:
+                        try:
+                            shift = IofShifts.objects.get(child_id=driver_id, shift_end_time__isnull=True)
+                        except:
+                            # traceback.print_exc()
+                            response[RESPONSE_MESSAGE] = START_SHIFT
+                            http_status = 200
+                            response[RESPONSE_STATUS] = 500
+                            response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
+                            return generic_response(response_body=response, http_status=http_status)
+
+                        activity.trips -= 1
+                        activity_data = create_activity_data(job_id, shift.parent.id, shift.child.id, timestamp,
+                                                         IOFOptionsEnum.TRIP_DECREMENT, lat_long, None, customer_id, module)
+                        activity_data.save()
+
+                        if remarks:
+                            activity.notes = remarks
+                            activity_data.notes = remarks
+                            activity_data.save()
+
+                        # Activate notification when adding this type as notification for trips.
+                        # if preferences.activity_suspend:
+                        #     send_notification_to_admin(shift.parent.id, shift.child.id, activity.id, activity,
+                        #                            [activity.activity_schedule.modified_by.id],
+                        #                                shift.child.name + " Suspended the activity " +
+                        #                                activity.activity_schedule.activity_type.label,
+                        #                                IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SUSPEND,None
+                        #                            )
+
+                    except Exception as e:
+                        traceback.print_exc()
+                        http_status = HTTP_ERROR_CODE
+                        response[RESPONSE_STATUS] = STATUS_ERROR
+                        
                 activity.save()
                 http_status = 200
                 response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
@@ -768,8 +909,8 @@ def get_rfid_card_tag_scan_admin(request):
     if rfid_id:
         try:
             Entity.objects.get(name=rfid_id, type_id__in=[DeviceTypeEntityEnum.RFID_TAG,DeviceTypeEntityEnum.RFID_CARD])
-            response_body[
-                RESPONSE_MESSAGE] = "You are trying to add an existing RFID. Please choose different RFID card/tag."
+            # "You are trying to add an existing RFID. Please choose different RFID card/tag."
+            response_body[RESPONSE_MESSAGE] = ADD_EXISTING_RFID
             response_body[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
             response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
             http_status = HTTP_SUCCESS_CODE
@@ -803,12 +944,14 @@ def get_rfid_scan_driver(request):
     try:
         rfid = Entity.objects.get(name=rfid_scanner_id, type_id=DeviceTypeEntityEnum.RFID_SCANNER, status_id=OptionsEnum.ACTIVE)
     except:
-        response[RESPONSE_MESSAGE] = "RFID Scanner does not exist. Please contact your administrator"
+        # "RFID Scanner does not exist. Please contact your administrator"
+        response[RESPONSE_MESSAGE] = SCANNER_DOES_NOT_EXIST
         return generic_response(response_body=response, http_status=http_status)
     try:
         truck = Assignment.objects.get(child=rfid, parent__type_id=DeviceTypeEntityEnum.TRUCK, status_id=OptionsEnum.ACTIVE).parent
     except:
-        response[RESPONSE_MESSAGE] = "RFID Scanner is not associated with a Truck. Please contact your administrator"
+        # "RFID Scanner is not associated with a Truck. Please contact your administrator"
+        response[RESPONSE_MESSAGE] = SCANNER_NOT_WITH_TRUCK
         return generic_response(response_body=response, http_status=http_status)
     if scanned_id:
         try:
@@ -819,14 +962,16 @@ def get_rfid_scan_driver(request):
             scanned_rfid = rfid_valid
             pass
         except ObjectDoesNotExist:
-            response[RESPONSE_MESSAGE] = "RFID Tag/Card does not exist. Please contact your administrator"
+            # "RFID Tag/Card does not exist. Please contact your administrator"
+            response[RESPONSE_MESSAGE] = RFID_TAG_CARD_DOES_NOT_EXIST
             return generic_response(response_body=response, http_status=http_status)
         try:
             ent = Assignment.objects.get(child=scanned_rfid, status=OptionsEnum.ACTIVE).parent
             # ent is the asset that the scanned asset is associated with. It can be a bin, driver or a client rep
         except:
+            # "RFID is not associated with any asset. Please contact your administrator"
             response[
-                RESPONSE_MESSAGE] = "RFID is not associated with any asset. Please contact your administrator"
+                RESPONSE_MESSAGE] = RFID_NOT_WITH_ASSET
             return generic_response(response_body=response, http_status=http_status)
             
         if action:# check actions against options
@@ -848,7 +993,14 @@ def get_rfid_scan_driver(request):
                 if on_shift:
                     result, response[RESPONSE_MESSAGE] = waste_collection_management(ent, truck, action, location)
             
-            elif action == IOFOptionsEnum.PICKUP_BIN or action == IOFOptionsEnum.BIN_PICKED_UP or action == IOFOptionsEnum.DROPOFF_BIN:
+            elif action == IOFOptionsEnum.PICKUP_BIN \
+                    or action == IOFOptionsEnum.BIN_PICKED_UP \
+                    or action == IOFOptionsEnum.CONTRACT_TERMINATION \
+                    or action == IOFOptionsEnum.MAINTENANCE_PICKUP \
+                    or action == IOFOptionsEnum.UPDATE_SKIP_DETAILS \
+                    or action == IOFOptionsEnum.SPARE_SKIP_DEPOSIT \
+                    or action == IOFOptionsEnum.WORKSHOP_DROP \
+                    or action == IOFOptionsEnum.DROPOFF_BIN:
                 # Dropoff and Pick up Bin Logice here
                 result, response[RESPONSE_MESSAGE] = bin_collection_management(ent, truck, action, location)
             
@@ -856,10 +1008,12 @@ def get_rfid_scan_driver(request):
                 # Supervisor verify/abort  collection logic here
                 on_shift, response[RESPONSE_MESSAGE] = check_shift_on_truck(truck)
                 if on_shift:
-                    result, response[RESPONSE_MESSAGE] = verification_management(ent, second_scanned_id, action)
+                    result, response[RESPONSE_MESSAGE] = verification_management(ent, response[RESPONSE_MESSAGE],second_scanned_id, action)
             
             elif action == IOFOptionsEnum.UPDATE_SKIP_WEIGHT:
                 result, response[RESPONSE_MESSAGE] = update_skip_weight(truck, ent)
+            elif action == IOFOptionsEnum.REPORT_MAINTENANCE:
+                result, response[RESPONSE_MESSAGE] = report_bin_maintenance(truck, ent)
             
             if result:
                 response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
@@ -890,14 +1044,15 @@ def update_rfid_scan_driver(request):
         try:
             scanned_entity = Entity.objects.get(name=scanned_id)
         except:
-            response[RESPONSE_MESSAGE] = "Scanned Tag/Card Does not exist. Please register it first."
+            response[RESPONSE_MESSAGE] = RFID_TAG_CARD_DOES_NOT_EXIST
             response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
             response[RESPONSE_STATUS] = HTTP_ERROR_CODE
             http_status = HTTP_SUCCESS_CODE
             return generic_response(response_body=response, http_status=http_status)
         try:
             Assignment.objects.get(child=scanned_entity, child__type_id=rfid_type, status=OptionsEnum.ACTIVE)
-            response[RESPONSE_MESSAGE] = "Scanned RFID/Tag is already assigned to an existing asset. Please choose different RFID Card/Tag"
+            # "Scanned RFID/Tag is already assigned to an existing asset. Please choose different RFID Card/Tag"
+            response[RESPONSE_MESSAGE] = RFID_ALREADY_WITH_ASSET
             response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
             response[RESPONSE_STATUS] = HTTP_ERROR_CODE
             http_status = HTTP_SUCCESS_CODE
@@ -957,6 +1112,8 @@ def get_rfid_scanner_truck(request):
         response[RESPONSE_MESSAGE] = "RFID Scanner is not associated with a Truck. Please contact your administrator"
         return generic_response(response_body=response, http_status=http_status)
     response[RESPONSE_MESSAGE] = 'Truck: '+truck.name+'\nCustomer: '+truck.customer.name
+    obj = TruckSerializer(truck, context={'request': request})
+    response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: True, 'data': obj.data}
     response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
     return generic_response(response_body=response, http_status=http_status)
 
@@ -1089,29 +1246,31 @@ def get_last_job(request):
     return generic_response(response_body=response, http_status=http_status)
 
 
-@receiver(post_save, sender=IofShifts)
-def intercept_shifts(sender, instance, **kwargs):
-    result = []
-    driver_user = User.objects.get(associated_entity=instance.child).id
-    result.append(driver_user)
-    admin = User.objects.filter(customer=instance.customer, role_id=1)
-    for obj in admin:
-        result.append(obj.id)
+# Removing interceptor because of trips
+# @receiver(post_save, sender=IofShifts)
+# def intercept_shifts(sender, instance, **kwargs):
+#     result = []
+#     driver_user = User.objects.get(associated_entity=instance.child).id
+#     result.append(driver_user)
+#     admin = User.objects.filter(customer=instance.customer, role_id=1)
+#     for obj in admin:
+#         result.append(obj.id)
+#
+#     if not instance.shift_end_time:
+#         notification = send_action_notification(instance.parent.id, instance.child.id, None, instance,
+#                                  instance.child.name + " started the shift ",
+#                                 IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SHIFT_START)
+#         notification.save()
+#         save_users_group(notification,result)
+#
+#
+#     else:
+#         notification = send_action_notification(instance.parent.id, instance.child.id, None, instance,
+#                                  instance.child.name + " ended the shift",
+#                                 IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SHIFT_COMPLETE)
+#         notification.save()
+#         save_users_group(notification, result)
 
-    if not instance.shift_end_time:
-        notification = send_action_notification(instance.parent.id, instance.child.id, None, instance,
-                                 instance.child.name + " started the shift ",
-                                IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SHIFT_START)
-        notification.save()
-        save_users_group(notification,result)
-
-
-    else:
-        notification = send_action_notification(instance.parent.id, instance.child.id, None, instance,
-                                 instance.child.name + " ended the shift",
-                                IOFOptionsEnum.NOTIFICATION_ADMIN_ACKNOWLEDGE_DRIVER_SHIFT_COMPLETE)
-        notification.save()
-        save_users_group(notification, result)
 
 
 @api_view(['GET'])
@@ -1124,19 +1283,17 @@ def driver_shift_activity_status(request):
     http_status = HTTP_SUCCESS_CODE
     result = {}
     if user.associated_entity.type.id == DeviceTypeEntityEnum.DRIVER:
-        try:
-            result['assigned_truck'] = Assignment.objects.get(child_id=d_id, type_id=DeviceTypeAssignmentEnum.DRIVER_ASSIGNMENT,
-                                   status_id=OptionsEnum.ACTIVE).parent.name
-        except:
+        result['shift_status'], shift_obj = check_entity_on_current_shift(d_id, None, c_id)
+        if result['shift_status']:
+            result['assigned_truck'] = shift_obj.parent.name
+        else:
             result['assigned_truck'] = None
-        result['shift_status'] = check_entity_on_current_shift(d_id, None, c_id)
-        flag, activity = check_entity_on_activity(d_id=d_id, t_id=None, c_id=c_id)
-        if flag is True:
-            result['on_activity'] = flag
+        result['on_activity'], activity = check_entity_on_activity(d_id=d_id, t_id=None, c_id=c_id)
+        if result['on_activity']:
             result['activity_name'] = activity.activity_schedule.activity_type.label
         else:
-            result['on_activity'] = False
             result['activity_name'] = None
+            
         response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
         response[RESPONSE_DATA] = result
         response[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
@@ -1145,3 +1302,202 @@ def driver_shift_activity_status(request):
         response[RESPONSE_MESSAGE] = NOT_ALLOWED
     return generic_response(response_body=response, http_status=http_status)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=500))
+def shift_login(request):
+    email = get_data_param(request, 'email', None)
+    password = get_data_param(request, 'password', None)
+    action = get_data_param(request, 'action', None)
+    rfid_scanner_id = get_data_param(request, 'rfid_scanner_id', None)
+    logged_in_user = get_user_from_request(request, None)
+
+    try:
+        rfid = Entity.objects.get(name=rfid_scanner_id, type_id=DeviceTypeEntityEnum.RFID_SCANNER, status_id=OptionsEnum.ACTIVE)
+    except:
+        return Response(response_json(500, None, 'RFID Scanner doesnot exist'))
+        rfid = None
+    try:
+        truck = Assignment.objects.get(child=rfid, parent__type_id=DeviceTypeEntityEnum.TRUCK, status_id=OptionsEnum.ACTIVE).parent
+    except:
+        # "RFID Scanner is not associated with a Truck. Please contact your administrator"
+        truck = None
+        return Response(response_json(500, None, 'No assigned truck with this scanner'))
+    if email and password:
+        user = authenticate(username=email, password=password)
+        if user:
+            token = Token.objects.get_or_create(user=user)
+            user_serializer = UserLoginSerializer(user)
+            user_modules = ModuleAssignment.objects.filter(customer=user.customer)
+            customer_serializer = CustomerListSerializer(user.customer)
+            data = user_serializer.data
+            data['customer'] = customer_serializer.data
+            data['token'] = token[0].key
+            data['user_role_id'] = None if not user.role else user.role.id
+            data['user_role_name'] = None if not user.role else user.role.name
+            data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
+            data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
+            data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
+
+            user.last_login = timezone.now()
+            user.save()
+
+            #result, resp = driver_shift_management_simplified(truck, user.associated_entity, None)
+
+            result, resp = driver_shift_management_revised(truck, user.associated_entity, True)
+            #response = Response(response_json(200, data, None))  # TODO: Will be removed later.
+            #data['shift_status'] = resp
+
+            data['message'] = resp
+            if result is True:
+                response = Response(response_json(200, data, None))  # TODO: Will be removed later.
+            else:
+                response = Response(response_json(500, None, resp))  # TODO: Will be removed later
+            return response
+        return Response(response_json(500, None, 'Wrong username or password'))
+
+    if int(action) == IOFOptionsEnum.END_SHIFT:
+        # End shift logic here
+        result, resp = driver_shift_management_revised(truck, logged_in_user.associated_entity, None)
+        data = {}
+        data['message'] = resp
+
+        if result is True:
+            response = Response(response_json(200, data, None))  # TODO: Will be removed later.
+        else:
+            response = Response(response_json(500, None, resp))  # TODO: Will be removed later
+        return response
+    return Response(response_json(500, None, TEXT_PARAMS_MISSING))
+
+
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def manual_waste_collection(request):
+    response = {RESPONSE_STATUS: STATUS_OK, RESPONSE_MESSAGE: ""}
+    response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
+    response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+    http_status = HTTP_SUCCESS_CODE
+
+    rfid_scanner_id = get_param(request, 'rfid_scanner_id', None)
+    #action = get_param(request, 'action', None)
+    location = get_param(request, 'location', None)
+    user = get_user_from_request(request, None)
+    bin_id = get_param(request, 'bin_id', None)
+    invoice = get_param(request, 'invoice', 0)
+    weight = get_param(request, 'weight', 0)
+    try:
+        rfid = Entity.objects.get(name=rfid_scanner_id, type_id=DeviceTypeEntityEnum.RFID_SCANNER,
+                                  status_id=OptionsEnum.ACTIVE)
+    except:
+        # "RFID Scanner does not exist. Please contact your administrator"
+        response[RESPONSE_MESSAGE] = SCANNER_DOES_NOT_EXIST
+        return generic_response(response_body=response, http_status=http_status)
+    try:
+        truck = Assignment.objects.get(child=rfid, parent__type_id=DeviceTypeEntityEnum.TRUCK,
+                                       status_id=OptionsEnum.ACTIVE).parent
+    except:
+        # "RFID Scanner is not associated with a Truck. Please contact your administrator"
+        response[RESPONSE_MESSAGE] = SCANNER_NOT_WITH_TRUCK
+        return generic_response(response_body=response, http_status=http_status)
+
+    try:
+        ent = Entity.objects.get(id=bin_id)
+        print(ent.name)
+        # ent is the asset that the scanned asset is associated with. It can be a bin, driver or a client rep
+    except:
+        # "RFID is not associated with any asset. Please contact your administrator"
+        response[
+            RESPONSE_MESSAGE] = RFID_NOT_WITH_ASSET
+        return generic_response(response_body=response, http_status=http_status)
+
+
+    #action = int(action)
+    result = None
+
+    #if action == IOFOptionsEnum.COLLECT_WASTE or action == IOFOptionsEnum.WASTE_COLLECTED:
+    on_shift, response[RESPONSE_MESSAGE] = check_shift_on_truck(truck)
+    # Collect, waste collected logic here
+    if on_shift:
+        result, response[RESPONSE_MESSAGE] = waste_collection_management_withou_rfid(ent, truck, None, location, invoice, weight)
+
+    if result:
+        response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+        response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: True}
+    else:  # Send true as no action has been set yet.
+        response[RESPONSE_MESSAGE] = ent.name + ', ' + ',' + ent.type.name
+        if ent.photo:
+            response[RESPONSE_MESSAGE] = ent.name + ',' + request.build_absolute_uri(
+                ent.photo.url) + ',' + ent.type.name
+        response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+        response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: True}
+    return generic_response(response_body=response, http_status=http_status)
+
+
+########## For E2E: TODO: Remove this in the future or turn this generic
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def e2e_actions(request):
+    response = {RESPONSE_STATUS: STATUS_OK, RESPONSE_MESSAGE: ""}
+    response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
+    response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+    http_status = HTTP_SUCCESS_CODE
+    user = User.objects.get(email='driver_e2e@hypernymbiz.com')
+    bin_id = get_param(request, 'id', None)
+    location = get_param(request, 'location', None)
+    
+    if bin_id:
+        try:
+            bin = Entity.objects.get(name=bin_id, type_id=DeviceTypeEntityEnum.BIN,
+                                      status_id=OptionsEnum.ACTIVE)
+        except:
+            # "RFID Scanner does not exist. Please contact your administrator"
+            response[RESPONSE_MESSAGE] = "Scanned Package does not exist"
+            return generic_response(response_body=response, http_status=http_status)
+        try:
+            check, response[RESPONSE_MESSAGE] = collect_package(bin, location, user)
+            if check:
+                response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+        except:
+            traceback.print_exc()
+            response[RESPONSE_MESSAGE] = "An error occurred. Please try again later."
+    else:
+        try:
+            check, response[RESPONSE_MESSAGE] = start_e2e_collection(location, user)
+            if check:
+                response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+        except:
+            traceback.print_exc()
+            response[RESPONSE_MESSAGE] = "An error occurred. Please try again later."
+    return generic_response(response_body=response, http_status=http_status)
+
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def get_e2e_packages(request):
+    response = {RESPONSE_STATUS: STATUS_OK, RESPONSE_MESSAGE: ""}
+    response[RESPONSE_DATA] = {TEXT_OPERATION_SUCCESSFUL: False}
+    response[RESPONSE_STATUS] = HTTP_ERROR_CODE
+    http_status = HTTP_SUCCESS_CODE
+    user = User.objects.get(email='driver_e2e@hypernymbiz.com')
+    result = dict()
+    bin_collections_list = []
+    b_data = util_get_bins_collection_data(None, None, None, None, None, user.associated_entity.id, None, None, None)
+    try:
+        for obj in b_data:
+            collection_data = BinCollectionDataSerializer(obj, context={'request': request})
+            collection_data = collection_data.data.copy()
+            collection_data['entity_location'] = obj.action_item.source_latlong
+            bin_collections_list.append(collection_data)
+        result['assets'] = bin_collections_list
+        response[RESPONSE_DATA] = result
+    except:
+        traceback.print_exc()
+        # "RFID Scanner does not exist. Please contact your administrator"
+        response[RESPONSE_MESSAGE] = "Some error occurred. Please try again later."
+        return generic_response(response_body=response, http_status=http_status)
+    response[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+    return generic_response(response_body=response, http_status=http_status)

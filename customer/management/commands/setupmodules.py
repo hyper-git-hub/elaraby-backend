@@ -1,3 +1,4 @@
+import traceback
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 from hypernet.models import Module
@@ -5,9 +6,13 @@ from hypernet.enums import ModuleEnum
 
 
 url_dict = {
+
 1:'/iof/dashboard',
 2:'/ioa/dashboard',
-3:'/ppp/dashboard'
+3:'/ppp/dashboard',
+4:'/ffp/dashboard',
+5:'/iop/dashboard',
+
 }
 
 
@@ -28,5 +33,6 @@ class Command(BaseCommand):
                     pass
             self.stdout.write(self.style.SUCCESS('Successful.'))
         except Exception as e:
+            traceback.print_exc()
             self.stdout.write(self.style.WARNING(str(e) + 'Failed.'))
             raise CommandError('Failed to Setup Modules')

@@ -8,6 +8,10 @@ class RoleTypeEnum(enum.Enum):
     CARETAKER = 4
     VET = 5
     FINANCE = 6
+    SALES_MANAGER = 7
+    CUSTOMER_CLIENT = 8
+    CMS_ADMIN = 9
+
 
     labels = {
         ADMIN: "Admin",
@@ -16,4 +20,7 @@ class RoleTypeEnum(enum.Enum):
         CARETAKER: "Caretaker",
         VET: "Vetenarian",
         FINANCE: "Finance",
+        SALES_MANAGER: "Sales Manager",
+        CUSTOMER_CLIENT: "Customer Client",
+        CMS_ADMIN: "CMS Admin",
     }

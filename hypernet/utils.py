@@ -1,11 +1,14 @@
 # **************** Other Util Methods ****************
 import gc
 import json
+import traceback
+
 from django.http import HttpResponse
 import logging
 from hypernet.constants import ERROR_PARAMS_MISSING_BODY, RESPONSE_MESSAGE, RESPONSE_STATUS
-from user.enums import RoleTypeEnum
+from hypernet.enums import IOFOptionsEnum
 
+from django.utils import timezone
 logger = logging.getLogger('hypernet')
 
 
@@ -25,6 +28,10 @@ def get_data_param(request, key, default):
         return key or default
     else:
         return default
+    
+def get_data_param_list(request, key, default):
+    key = request.get(key)
+    return key or default
 
 
 def get_customer_from_request(request, default):
@@ -106,7 +113,6 @@ def exception_handler(def_value=None):
             try:
                 return f(*args, **kwargs)
             except Exception as err:
-                # traceback.print_exc(5)
                 logger.error(err, exc_info=True)
                 return def_value
         return applicator
@@ -158,10 +164,12 @@ def verify_user_privileges(params):
 # Generic failure/success Response
 from django.core.serializers.json import DjangoJSONEncoder
 def generic_response(response_body, http_status=200, header_dict={}, mime='application/json'):
+
     msg = json.dumps(response_body, cls=DjangoJSONEncoder)
     resp = HttpResponse(msg, status=http_status, content_type=mime)
     for name, value in header_dict.items():
         resp[name] = value
+    # print("in generic response")
     return resp
 
 # ------- IOA UTIL FUNCTION FOR ESTRUS ALERT CRITERIA -------------
@@ -190,3 +198,86 @@ def get_value_from_data(key, data, type, default=None):
             return int(data.get(key))
     else:
         return default
+
+
+def get_notification_day(obj):
+    if obj:
+        if obj.timestamp.date == timezone.now().date:
+            return "Today"
+        elif (timezone.now() - obj.timestamp).days == 1:
+            return "Yesterday"
+        elif (timezone.now() - obj.timestamp).days >= 7:
+            return "Last Week"
+        else:
+            return "Earlier"
+
+
+def get_month_from_str(str):
+    if str == 'January':
+        return 1
+    elif str == 'February':
+        return 2
+    elif str == 'March':
+        return 3
+    elif str == 'April':
+        return 4
+    elif str == 'May':
+        return 5
+    elif str == 'June':
+        return 6
+    elif str == 'July':
+        return 7
+    elif str == 'August':
+        return 8
+    elif str == 'September':
+        return 9
+    elif str == 'October':
+        return 10
+    elif str == 'November':
+        return 11
+    elif str == 'December':
+        return 12
+    else:
+        return None
+    
+    
+def get_material_for_skipsize(skip_size):
+    try:
+        entity_sub_type = None
+        if IOFOptionsEnum.SKIP_SIZE_12 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.PLASTIC)
+    
+        elif IOFOptionsEnum.SKIP_SIZE_1 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.GALVANIZED_METAL_OR_PLASTIC)
+    
+        elif IOFOptionsEnum.SKIP_SIZE_2 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.GALVANIZED_METAL)
+    
+        elif IOFOptionsEnum.SKIP_SIZE_3 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_4 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_5 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_6 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_7 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_8 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_9 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_10 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_11 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+        elif IOFOptionsEnum.SKIP_SIZE_13 == skip_size:
+            entity_sub_type = IOFOptionsEnum.labels.get(IOFOptionsEnum.METAL)
+
+        return entity_sub_type
+    except:
+        traceback.print_exc()
+
+
+
+

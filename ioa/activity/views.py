@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from rest_framework.decorators import  APIView
-from ioa.crons.scheduler import testing
+# from ioa.crons.scheduler import testing
 from ioa.serializer import ActivityListSerializer
 from hypernet.utils import generic_response, get_data_param, get_default_param, exception_handler
 from hypernet.constants import *

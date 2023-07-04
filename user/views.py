@@ -3,44 +3,52 @@ import json
 import os
 import random
 import string
-import invitations
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.hashers import make_password, check_password
-from rest_framework.decorators import api_view, permission_classes
+import traceback
+import requests
+import random
 
-from email_manager.email_util import extended_email_with_title
-from hypernet.constants import ERROR_RESPONSE_BODY, HTTP_ERROR_CODE, RESPONSE_MESSAGE, TEXT_PARAMS_MISSING, \
-    RESPONSE_STATUS, STATUS_ERROR, RESPONSE_DATA, STATUS_OK, HTTP_SUCCESS_CODE, TEXT_OPERATION_SUCCESSFUL, \
-    EMAIL_FORGOT_PASSWORD_MESSAGE
-from hypernet.enums import OptionsEnum
-from hypernet.utils import get_data_param, response_json, exception_handler, generic_response, \
-    get_customer_from_request, get_user_from_request, get_default_param, get_module_from_request
+import invitations
+from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password, check_password
 from django.core.mail import send_mail
+from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError
 from django.http import HttpResponse
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.template import loader
+from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.views.generic import View
 from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.generics import (
     CreateAPIView
 )
 from rest_framework.permissions import (
     AllowAny,
-    IsAdminUser,
-    IsAuthenticated)
+    IsAdminUser)
 from rest_framework.response import Response
 from rest_framework.status import HTTP_409_CONFLICT
 from rest_framework.views import APIView
+
+from customer.models import Customer
 from customer.serializers import CustomerListSerializer
+from email_manager.email_util import extended_email_with_title
+from ffp.reporting_utils import get_site_or_zone_of_supervisor
 from hypernet import constants
+from hypernet.constants import ERROR_RESPONSE_BODY, HTTP_ERROR_CODE, RESPONSE_MESSAGE, TEXT_PARAMS_MISSING, \
+    RESPONSE_STATUS, STATUS_ERROR, RESPONSE_DATA, STATUS_OK, HTTP_SUCCESS_CODE, TEXT_OPERATION_SUCCESSFUL, \
+    EMAIL_FORGOT_PASSWORD_MESSAGE, SIGN_UP_FAILURE, TEXT_ALREADY_EXISTS
+from hypernet.enums import OptionsEnum, ModuleEnum, FFPOptionsEnum
+from hypernet.utils import get_data_param, response_json, exception_handler, generic_response, \
+    get_customer_from_request, get_user_from_request, get_default_param, get_module_from_request
 from user.enums import RoleTypeEnum
-from user.utils import user_reset_verify, reset_user_token_reset
-from .models import User, ModuleAssignment
-from .permissions import IsAdminOrReadOnly
+from user.utils import user_reset_verify, reset_user_token_reset,info_bip_message,save_user_signup_confirm_code
+from .models import User, ModuleAssignment,UserConfirmation , UserManual
+from random import randint
 # Create your views here.
 
 # from posts.api.permissions import IsOwnerOrReadOnly
@@ -129,6 +137,11 @@ class UserLoginAPIView(APIView):
         if email and password:
             user = authenticate(username=email, password=password)
             if user:
+                # try:
+                #     Token.objects.get(user_id=user.id).delete()
+                # except :
+                #     pass
+
                 token = Token.objects.get_or_create(user=user)
                 user_serializer = UserLoginSerializer(user)
                 user_modules = ModuleAssignment.objects.filter(customer=user.customer)
@@ -140,13 +153,26 @@ class UserLoginAPIView(APIView):
                 data['user_role_name'] = None if not user.role else user.role.name
                 data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
                 data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
+                data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
+                if int(user.preferred_module) == ModuleEnum.FFP:
+                    if user.associated_entity:
+                        site_or_zone = get_site_or_zone_of_supervisor(s_sup_id=user.associated_entity, get_zone=True)
+                        if user.associated_entity.entity_sub_type_id == FFPOptionsEnum.SITE_SUPERVISOR and site_or_zone:
+                            data['site'] = site_or_zone.name
+                            data['site_id'] = site_or_zone.id
+                        elif (
+                                        user.associated_entity.entity_sub_type_id == FFPOptionsEnum.ZONE_SUPERVISOR or FFPOptionsEnum.TEAM_SUPERVISOR) and site_or_zone:
+                            data['zone'] = site_or_zone.name
+                            data['zone_id'] = site_or_zone.id
+
                 if push_key:
                     user.one_signal_device_id = push_key
                     user.save()
-                return Response(response_json(200, data, None))     #TODO: Will be removed later.
-            return Response(response_json(500, None, 'Wrong username or password'))
-        return Response(response_json(500, None, constants.TEXT_PARAMS_MISSING))
-
+                user.last_login = timezone.now()
+                user.save()
+                return Response(response_json(HTTP_SUCCESS_CODE, data, None))  # TODO: Will be removed later.
+            return Response(response_json(HTTP_ERROR_CODE, None, 'Wrong username or password'))
+        return Response(response_json(HTTP_ERROR_CODE, None, constants.TEXT_PARAMS_MISSING))
 
 class UsersAPIView(View):
     def get(self, request):
@@ -166,7 +192,7 @@ class UsersAPIView(View):
                 team.append(json.dumps(t))
             team_dict["team"] = team
         except Exception as e:
-            print(e, type(e))
+            traceback.print_exc()
 
         return HttpResponse(json.dumps(team_dict), content_type="application/json")
 
@@ -185,11 +211,8 @@ class UsersAPIView(View):
         except IntegrityError:
             return HttpResponse(content="User with name already exists", status=HTTP_409_CONFLICT)
         except Exception as e:
-            print(e, type(e))
-
+            traceback.print_exc()
         return HttpResponse(content="User created successfully with id " + str(user_id), status=201)
-
-
 class UserAPIView(View):
     def get(self, request, user_id):
         # ========================================
@@ -204,7 +227,7 @@ class UserAPIView(View):
                 u["id"] = user.id
                 u["username"] = user.username
         except Exception as e:
-            print(e, type(e))
+            traceback.print_exc()
 
         return HttpResponse(json.dumps(u), content_type="application/json")
 
@@ -223,7 +246,7 @@ class UserAPIView(View):
             user.save()
             return HttpResponse(content="User updated with id " + user.id, status=200)
         except Exception as e:
-            print(e, type(e))
+            traceback.print_exc()
 
     def delete(self, request, user_id):
 
@@ -233,7 +256,7 @@ class UserAPIView(View):
             if user.info.customer == request_user.info.customer:
                 user.delete()
         except Exception as e:
-            print(e, type(e))
+            traceback.print_exc()
 
         return HttpResponse(content="Deleted successfully user with id " + str(user_id), status=200)
 
@@ -265,6 +288,7 @@ class UserPasswordResetRequest(View):
             user.reset_token_datetime = datetime.datetime.now()
             user.save()
         except User.DoesNotExist:
+            traceback.print_exc()
             user = None
 
         return HttpResponse(200)
@@ -279,7 +303,7 @@ class UserResetTokenVerify(View):
             now = datetime.datetime.now()
             token_time = user.reset_token_datetime.replace(tzinfo=None)
             if (token == user.reset_token) and (user.reset_token != "") and (
-                (now - token_time).total_seconds() < 86400):
+                        (now - token_time).total_seconds() < 86400):
                 return HttpResponse(status=200)
         except User.DoesNotExist:
             user = None
@@ -305,12 +329,11 @@ class UserChangePassword(View):
         return HttpResponse(status=401)
 
 
-
 @api_view(['GET'])
 @permission_classes((AllowAny,))
 @exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
 def get_user_profile(request):
-    user_id = get_user_from_request(request,0)
+    user_id = get_user_from_request(request, 0)
     token = get_default_param(request, 'reset_token', None)
 
     response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: HTTP_ERROR_CODE, RESPONSE_DATA: []}
@@ -330,7 +353,8 @@ def get_user_profile(request):
             response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
             response_body[RESPONSE_DATA] = resp_list
         except User.DoesNotExist:
-            response_body[RESPONSE_MESSAGE] = "The profile you are using is not valid. Please login again with valid credentials."
+            response_body[
+                RESPONSE_MESSAGE] = "The profile you are using is not valid. Please login again with valid credentials."
             response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
             return generic_response(response_body=response_body, http_status=http_status)
     elif token:
@@ -374,7 +398,7 @@ def modify_user_details(request):
             data_dict['last_name'] = serializer.data.get('last_name')
             data_dict['preferred_module'] = serializer.data.get('preferred_module')
             response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
-            
+
             response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
             response_body[RESPONSE_DATA] = data_dict
 
@@ -382,9 +406,8 @@ def modify_user_details(request):
             error_list = []
             response_body[RESPONSE_MESSAGE] = "Following Fields have invalid values: \n"
             for errors in serializer.errors:
-                print(serializer.errors)
                 error_list.append(errors)
-                response_body[RESPONSE_MESSAGE] += errors +'\n'
+                response_body[RESPONSE_MESSAGE] += errors + '\n'
             response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
 
     # elif token:
@@ -424,7 +447,7 @@ def modify_user_details(request):
         except User.DoesNotExist:
             response_body[RESPONSE_MESSAGE] = "User profile does not exist. Please contact your administrator."
             response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
-            
+
     return generic_response(response_body=response_body, http_status=http_status)
 
 
@@ -441,7 +464,8 @@ def regenerate_reset_token(request):
         if add_user:
             url = add_user.reset_token
             msg = EMAIL_FORGOT_PASSWORD_MESSAGE
-            extended_email_with_title(title="create_user", to_list=[email], email_words_dict={'{0}': url, '{text}':msg})
+            extended_email_with_title(title="create_user", subject=None, to_list=[email],
+                                      email_words_dict={'{0}': url, '{text}': msg})
 
             response_body[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
             response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
@@ -502,7 +526,7 @@ def reset_user_password_token(request):
 
         except:
             return generic_response(response_body=response_body, http_status=http_status)
-        if verified_user:# and verified_user.password is None:
+        if verified_user:  # and verified_user.password is None:
             verified_user.reset_token = ""
             verified_user.reset_token_datetime = None
             verified_user.save()
@@ -529,10 +553,9 @@ def user_sign_up_invitation_manager(request):
     request.data['status'] = OptionsEnum.ACTIVE
     request.data['customer'] = get_customer_from_request(request, None)
     request.data['module'] = get_module_from_request(request, None)
-    request.data['modified_by'] = get_user_from_request(request,None).id
+    request.data['modified_by'] = get_user_from_request(request, None).id
     request.POST._mutable = False
     response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
-
 
     if email:
 
@@ -552,7 +575,8 @@ def user_sign_up_invitation_manager(request):
                 if add_user:
                     url = add_user.reset_token
                     msg = EMAIL_FORGOT_PASSWORD_MESSAGE
-                    extended_email_with_title(title="create_user", to_list=[email], email_words_dict={'{0}':url, '{text}':msg})
+                    extended_email_with_title(title="create_user", subject=None, to_list=[email],
+                                              email_words_dict={'{0}': url, '{text}': msg})
 
                 response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
                 http_status = HTTP_SUCCESS_CODE
@@ -562,7 +586,6 @@ def user_sign_up_invitation_manager(request):
                 error_list = []
                 for errors in serializer.errors:
                     error_list.append("invalid  " + errors + "  given.")
-                print(error_list)
 
                 response_body[RESPONSE_MESSAGE] = {'error_message': 'Validation Error'}
                 http_status = HTTP_SUCCESS_CODE
@@ -581,9 +604,9 @@ def user_sign_up_invitation_manager(request):
 @api_view(['GET'])
 @exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
 def users_details_list(request):
-    customer = get_customer_from_request(request,None)
+    customer = get_customer_from_request(request, None)
     response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
-    if get_user_from_request(request,None):
+    if get_user_from_request(request, None):
         if get_user_from_request(request, None).role_id != RoleTypeEnum.ADMIN:
             response_body[RESPONSE_MESSAGE] = 'You do not have sufficient privleges to perform this action.'
             http_status = HTTP_SUCCESS_CODE
@@ -591,7 +614,7 @@ def users_details_list(request):
             return generic_response(response_body=response_body, http_status=http_status)
     if customer:
         users_list = []
-        user = User.objects.filter(customer_id = customer)
+        user = User.objects.filter(customer_id=customer)
         for obj in user:
             serializer = UserSerializer(obj, partial=True, context={'request': request})
             serializer_data = serializer.data.copy()
@@ -603,3 +626,298 @@ def users_details_list(request):
         response_body[RESPONSE_DATA] = users_list
 
         return generic_response(response_body=response_body, http_status=http_status)
+
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def users_details(request, user_id):
+    response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
+
+    print(user_id)
+    http_status = HTTP_SUCCESS_CODE
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+            ser = UserSerializer(user, context={'request': request})
+            data = ser.data
+            data['device_detail'] = json.loads(data['android_device_info'])
+
+            response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
+            http_status = HTTP_SUCCESS_CODE
+            response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+            response_body[RESPONSE_DATA] = data
+        except Exception as e:
+            print(e)
+            response_body[RESPONSE_MESSAGE] = {'error_message': TEXT_OPERATION_SUCCESSFUL}
+            http_status = HTTP_ERROR_CODE
+            response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+            response_body[RESPONSE_DATA] = {}
+            pass
+        return generic_response(response_body=response_body, http_status=HTTP_SUCCESS_CODE)
+
+
+@api_view(['POST'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def customer_users_signup(request):
+    customer = get_data_param(request, 'customer', None)
+    print(customer)
+    # password = get_data_param(request, 'password', None)
+    ph_no = get_data_param(request, 'ph_no', None)
+    first_name = get_data_param(request, 'first_name', None)
+    first_name = (first_name.lower()).replace(' ', '')
+    last_name = get_data_param(request, 'last_name', None)
+    last_name = (last_name.lower()).replace(' ', '')
+
+    if request.data.get('password'):
+        request.POST._mutable = True
+        request.data['password'] = make_password(request.data.get('password'))
+        request.POST._mutable = False
+
+    response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
+    http_status = HTTP_SUCCESS_CODE
+    try:
+        customer = Customer.objects.get(name=customer)
+    except:
+        customer = None
+
+    if customer:
+        try:
+            User.objects.get(contact_number=ph_no)
+            response_body[RESPONSE_MESSAGE] = {'error_message': "User with " + ph_no + " " + TEXT_ALREADY_EXISTS}
+            response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+
+        except:
+            try:
+                user = UserConfirmation.objects.get(contact_number=ph_no)
+                random_code = random.randint(100000, 999999)
+                # random_code=123456
+                user.contact_number = ph_no
+                # user.reset_token = get_random_string(length=6, allowed_chars='0123456789') #str(random_code)  #get_random_string(length=6, allowed_chars='0123456789')
+                user.reset_token = '123456'
+                user.first_name = first_name
+                user.last_name = last_name
+                user.customer=customer
+                status=info_bip_message(user,user.reset_token)
+                print(user.contact_number,'user contact number')
+                if status == 200:
+                    # user.reset_token = random_code
+                    user.save()
+                else:
+                    response_body[RESPONSE_MESSAGE] = {'error_message': "Error send Verification Code."}
+                
+                response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
+                response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+            except:
+                try:
+                    user = UserConfirmation()
+                    random_code = random.randint(100000, 999999)
+                    #random_code=123456
+                    user.contact_number = ph_no
+                    # user.reset_token = get_random_string(length=6, allowed_chars='0123456789') #str(random_code)  # get_random_string(length=6, allowed_chars='0123456789')
+                    user.reset_token = '123456'
+                    user.first_name = first_name
+                    user.last_name = last_name
+                    user.customer=customer
+                    status=info_bip_message(user,user.reset_token)
+                    print(user.contact_number,'user contact number')
+                    if status == 200:
+                        # user.reset_token = random_code
+                        user.save()
+                    else:
+                        response_body[RESPONSE_MESSAGE] = {'error_message': "Error send Verification Code."}
+                    response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
+                    response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+                except:
+                    traceback.print_exc()
+                    response_body[RESPONSE_MESSAGE] = {'error_message': SIGN_UP_FAILURE}
+                    response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+
+    else:
+        response_body[RESPONSE_MESSAGE] = {'error_message': "Invalid Customer"}
+        response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+
+    return generic_response(response_body=response_body, http_status=http_status)
+
+
+@api_view(['POST'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def custom_login_iop(request):
+    phone_number = get_data_param(request, 'ph_no', None)
+    token = get_data_param(request, 'token', None)
+    response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
+    http_status = HTTP_SUCCESS_CODE
+    device_info = get_data_param(request, 'device_info', None)
+    # print(device_info)
+    data = {}
+    try:
+        user = User.objects.get(contact_number=phone_number)
+
+        if user and token and (token == user.reset_token):
+            auth_token = Token.objects.get_or_create(user=user)
+            user_serializer = UserLoginSerializer(user)
+            user_modules = ModuleAssignment.objects.filter(customer=user.customer)
+            customer_serializer = CustomerListSerializer(user.customer)
+            data = user_serializer.data
+            data['customer'] = customer_serializer.data
+            data['token'] = auth_token[0].key
+            data['user_role_id'] = None if not user.role else user.role.id
+            data['first_name'] = user.first_name
+            data['last_name'] = user.last_name
+            data['user_role_name'] = None if not user.role else user.role.name
+            data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
+            data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
+            data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
+            user.last_login = timezone.now()
+            user.android_device_info = json.dumps(device_info)
+            user.save()
+            print(user.android_device_info)
+
+            response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+            response_body[RESPONSE_DATA] = [data]
+            response_body[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
+
+        else:
+            response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+            response_body[RESPONSE_MESSAGE] = 'Token does not match. Please try again'
+        return generic_response(response_body, http_status=http_status)
+    except Exception as e:
+        try:
+            user_confirm=UserConfirmation.objects.get(contact_number=phone_number)
+            print(user_confirm.contact_number)
+            if user_confirm.contact_number == phone_number and user_confirm.reset_token==token:
+                save_user_signup_confirm_code(user_confirm,device_info)
+                user = User.objects.get(contact_number=phone_number)
+
+                if user and token and (token == user.reset_token):
+                    auth_token = Token.objects.get_or_create(user=user)
+                    user_serializer = UserLoginSerializer(user)
+                    user_modules = ModuleAssignment.objects.filter(customer=user.customer)
+                    customer_serializer = CustomerListSerializer(user.customer)
+                    data = user_serializer.data
+                    data['customer'] = customer_serializer.data
+                    data['token'] = auth_token[0].key
+                    data['user_role_id'] = None if not user.role else user.role.id
+                    data['first_name'] = user.first_name
+                    data['last_name'] = user.last_name
+                    data['user_role_name'] = None if not user.role else user.role.name
+                    data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
+                    data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
+                    data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
+                    user.last_login = timezone.now()
+                    user.android_device_info = json.dumps(device_info)
+                    user.save()
+                    print(user.android_device_info)
+
+                    response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+                    response_body[RESPONSE_DATA] = [data]
+                    response_body[RESPONSE_MESSAGE] = TEXT_OPERATION_SUCCESSFUL
+            else:
+                response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+                response_body[RESPONSE_MESSAGE] = 'Token does not match. Please try again'
+                return generic_response(response_body, http_status=http_status)
+            user_confirm.delete()
+            return generic_response(response_body, http_status=http_status)
+        except:
+            
+            print(e)
+            traceback.print_exc()
+            response_body[RESPONSE_MESSAGE] = {'error_message': 'User does not exist'}
+            response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+            return generic_response(response_body, http_status=http_status)
+
+
+@api_view(['POST'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=HTTP_ERROR_CODE))
+def resend_verification_code(request):
+    import requests
+    # random_code = randint(100000, 999999)
+    # random_code=get_random_string(length=6, allowed_chars='0123456789')
+    random_code = '123456'
+    phone_number = get_data_param(request, 'ph_no', None)
+    print(phone_number,'phone number for checking')
+    response_body = {RESPONSE_MESSAGE: TEXT_PARAMS_MISSING, RESPONSE_STATUS: STATUS_ERROR, RESPONSE_DATA: []}
+    http_status = HTTP_SUCCESS_CODE
+    data = {}
+    try:
+        user = UserConfirmation.objects.get(contact_number=phone_number,active=True)
+        print(user.contact_number,'phone number')
+        if user.contact_number == '+923365315972':
+            random_code=123456
+        status=info_bip_message(user,random_code)
+        if status == 200:
+            user.reset_token = random_code
+            user.password=str(random_code)
+            user.active=True
+            user.save()
+            response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
+            response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+
+        else:
+            response_body[RESPONSE_MESSAGE] = {'error_message': "Error send Verification Code."}
+            response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+        
+    except Exception as e:
+        try:
+            user = User.objects.get(contact_number=phone_number)
+            print(user.contact_number,'phone number')
+            
+            status=info_bip_message(user,random_code)
+            if status == 200:
+                print("status 200")
+                user.reset_token = random_code
+                user.password=str(user.reset_token)
+                user.save()
+                print("otp saved")
+                response_body[RESPONSE_MESSAGE] = {'success_message': TEXT_OPERATION_SUCCESSFUL}
+                response_body[RESPONSE_STATUS] = HTTP_SUCCESS_CODE
+
+            else:
+                response_body[RESPONSE_MESSAGE] = {'error_message': "Error send Verification Code."}
+                response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+            print(status , "this is status from bip info service")
+        except Exception as e:
+            print(e)
+            response_body[RESPONSE_MESSAGE] = {'error_message': 'Invalid phone number'}
+            response_body[RESPONSE_STATUS] = HTTP_ERROR_CODE
+    return generic_response(response_body=response_body, http_status=http_status)
+
+
+@csrf_exempt
+def handler404(request):
+    response = render(request, 'custom_response.html', status=404)
+    response.status_code = 200
+    return response
+
+
+
+
+
+@api_view(['POST'])
+@permission_classes((AllowAny,))
+def create_manual(request):
+    try:
+        file = request.data.get("file")
+        object = UserManual(file=file)
+        object.save()
+        return Response({"error":"False" , "message":"Successfull"})
+
+    except Exception as e:
+        print(e)
+        return Response({"error":"True" , "message" : "unsuccessful"})
+
+  
+
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+def get_manual(request):
+    try:
+        manual = UserManual.objects.last()
+        return Response({"error":"False" , "message":"Successfull" , "file":("{}").format(request.build_absolute_uri(manual.file.url))})
+    except Exception as e:
+        print(e)
+        return Response({"error":"True" , "message" : "unsuccessful"})

@@ -5,8 +5,13 @@ import hypernet.utils as h_utils
 from hypernet.utils import generic_response, get_user_from_request, get_default_param, \
     verify_request_params, get_customer_from_request, get_module_from_request
 from ioa.utils import *
-
-
+from django.utils import timezone
+from hypernet.enums import *
+from random import uniform
+import traceback
+from dateutil.parser import parse
+import random
+from hypernet.utils import get_month_from_str
 
 @csrf_exempt
 @api_view(['GET'])
@@ -190,3 +195,213 @@ def update_alerts_status(request):
     else:
         response_body[RESPONSE_DATA] = DEFAULT_ERROR_MESSAGE
     return generic_response(response_body=response_body, http_status=200)
+
+
+
+
+#test comamnds
+
+
+
+@csrf_exempt
+@api_view(['GET'])
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=500))
+def create_entitites(request):
+    response_body = {RESPONSE_MESSAGE: "", RESPONSE_STATUS: STATUS_OK, RESPONSE_DATA: []}
+    type = get_default_param(request, 'type', None)
+    items = get_default_param(request, 'items', None)
+    user = get_user_from_request(request,None)
+    customer = get_customer_from_request(request, None)
+    module = get_customer_from_request(request, None)
+    print(module)
+    try:
+        #arr = ['employee', 'truck', 'bin', 'driver']
+        #type = options['type'][0]
+        type = int(type)
+        #print(type)
+        for i in range(int(items)):
+
+            devices = CustomerDevice.objects.filter(type_id=type, assigned=False)
+            if devices:
+                devices = devices[0]
+            else:
+                devices = None
+            entity = Entity()
+            if type == DeviceTypeEntityEnum.EMPLOYEE:
+                entity.name = 'employee ' +str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.TRUCK:
+                entity.name = 'truck ' + str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.BIN:
+                entity.name = 'bin ' + str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.DRIVER:
+                entity.name = 'driver ' + str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.RFID_SCANNER:
+                entity.name = 'RFID Scanner ' + str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.RFID_TAG:
+                entity.name = 'RFID Tag ' + str(generate_word(5))
+            elif type == DeviceTypeEntityEnum.RFID_CARD:
+                entity.name = 'RFID Card ' + str(generate_word(5))
+
+            elif type == DeviceTypeEntityEnum.CONTRACT:
+                entity.name = 'Contract ' + str(generate_word(5))
+                x = random.choice([IOFOptionsEnum.METAL,
+                                                           IOFOptionsEnum.GALVANIZED_METAL,
+                                                           IOFOptionsEnum.GALVANIZED_METAL_OR_PLASTIC,
+                                                           IOFOptionsEnum.PLASTIC])
+                entity.entity_sub_type = Options.objects.get(id=x)
+                entity.skip_rate = random.randint(1,100)
+            elif type == DeviceTypeEntityEnum.CLIENT:
+                entity.name = 'Client ' + str(generate_word(5))
+
+            elif type == DeviceTypeEntityEnum.AREA:
+                entity.name = 'Area  ' + str(generate_word(5))
+
+            elif type == DeviceTypeEntityEnum.DUMPING_SITE:
+                entity.name = 'Dump Site ' + str(generate_word(5))
+                x, y = uniform(50,50), uniform(100, 100)
+                entity.source_latlong = str(x)+ ',' +str(y)
+
+            if type in [DeviceTypeEntityEnum.TRUCK, DeviceTypeEntityEnum.DRIVER,
+                        DeviceTypeEntityEnum.BIN, DeviceTypeEntityEnum.RFID_SCANNER,
+                        DeviceTypeEntityEnum.RFID_CARD, DeviceTypeEntityEnum.RFID_TAG,
+                        DeviceTypeEntityEnum.DUMPING_SITE, DeviceTypeEntityEnum.CLIENT,
+                        DeviceTypeEntityEnum.CONTRACT, DeviceTypeEntityEnum.AREA]:
+
+                entity.module= Module.objects.get(id=1)
+
+
+            if type in [DeviceTypeEntityEnum.EMPLOYEE]:
+                entity.module= Module.objects.get(id=4)
+
+
+            entity.status = Options.objects.get(id=OptionsEnum.ACTIVE)
+            entity.customer = Customer.objects.get(id=customer)
+            entity.type = DeviceType.objects.get(id=type)
+            entity.modified_by = user
+            entity.device_name = devices
+
+            if type in [DeviceTypeEntityEnum.DRIVER, DeviceTypeEntityEnum.EMPLOYEE]:
+                entity.cnic = '111-111-111'
+                entity.dob = timezone.now()
+                entity.date_of_joining = timezone.now()
+                entity.gender = Options.objects.get(id=OptionsEnum.MALE)
+                entity.marital_status = Options.objects.get(id=OptionsEnum.SINGLE)
+
+            if type == DeviceTypeEntityEnum.EMPLOYEE:
+                entity.entity_sub_type = Options.objects.get(id=FFPOptionsEnum.LABOUR)
+
+            if type in [DeviceTypeEntityEnum.TRUCK, DeviceTypeEntityEnum.BIN]:
+                entity.volume = False
+                entity.speed = False
+                entity.density = False
+                entity.temperature = False
+                entity.location = False
+                entity.location = False
+            if type == DeviceTypeEntityEnum.TRUCK:
+                entity.make = 'Honda'
+                entity.model = '2012'
+                entity.color = 'Black'
+            entity.save()
+            if devices:
+                devices.assigned = True
+                devices.save()
+            print("Total items saved: " + str(i))
+            response_body[RESPONSE_DATA] = TEXT_OPERATION_SUCCESSFUL
+        #self.stdout.write(self.style.SUCCESS('Successful.'))
+
+    except Exception as e:
+        print(e)
+        response_body[RESPONSE_DATA] = TEXT_OPERATION_SUCCESSFUL
+    return generic_response(response_body=response_body, http_status=200)
+
+
+
+
+
+@csrf_exempt
+@api_view(['GET'])
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=500))
+def create_devices(request):
+    response_body = {RESPONSE_MESSAGE: "", RESPONSE_STATUS: STATUS_OK, RESPONSE_DATA: []}
+    type = int(get_default_param(request, 'type', None))
+    items = get_default_param(request, 'items', None)
+    customer = get_customer_from_request(request, None)
+    module = get_customer_from_request(request, None)
+    print(module)
+    label = DeviceType.objects.get(id=type).name
+    total_devices = CustomerDevice.objects.filter(type_id=type).count()
+    current_devices = total_devices
+    try:
+        print(type)
+        for i in range(int(items)):
+            device = CustomerDevice()
+            device.primary_key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=14))
+            device.device_id = 'device- ' + label + str(current_devices)
+            device.status = Options.objects.get(id=OptionsEnum.ACTIVE)
+            device.customer = Customer.objects.get(id=customer)
+            device.type = DeviceType.objects.get(id=type)
+            device.module = Module.objects.get(id=1)
+            device.connection_string = 'Askar-output'
+            device.save()
+            current_devices+=1
+    except Exception as e:
+        print(e)
+        response_body[RESPONSE_DATA] = TEXT_OPERATION_SUCCESSFUL
+    return generic_response(response_body=response_body, http_status=200)
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import (
+    AllowAny,)
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+@exception_handler(generic_response(response_body=ERROR_RESPONSE_BODY, http_status=500))
+def alter_suez_data(request):
+    import xlrd
+    from datetime import datetime
+    fname = 'ioa/management/commands/Copy of Book111.xlsx'
+    xl_workbook = xlrd.open_workbook(fname)
+    xl_sheet = xl_workbook.sheet_by_index(0)
+    xl_sheet.cell_value(1, 0)
+
+    same_end_date = 0
+    different_end_date = 0
+    count=0
+
+    for i in range(1, xl_sheet.nrows):
+        try:
+            val_contract_name = xl_sheet.cell_value(i, 2)
+
+            try:
+                ent = Entity.objects.get(customer_id=2, name=val_contract_name)
+
+            except:
+                ent = None
+                traceback.print_exc()
+
+            if ent:
+                count+=1
+                print('{}st Row'.format(count))
+                year = int(xl_sheet.cell_value(i, 5))
+                month = xl_sheet.cell_value(i, 6)
+                day = int(xl_sheet.cell_value(i, 7))
+
+                month = get_month_from_str(month)
+
+                end_date = datetime(year=year,
+                         month=month, day=day, hour=0,
+                         minute=0, second=0)
+                if ent.date_of_joining != end_date.date():
+                    ent.date_of_joining = end_date
+                    ent.save()
+                    different_end_date+=1
+                    print('Contract end date modified')
+                else:
+                    same_end_date+=1
+                    print('Same end date')
+                    continue
+        except:
+            traceback.print_exc()
+    print('Contracts with same end date: {}'.format(same_end_date))
+    print('Contracts with different end date: {}'.format(different_end_date))
+

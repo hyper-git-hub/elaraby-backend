@@ -16,7 +16,8 @@ Including another URLconf
 from django.conf.urls import url, include
 from django.contrib import admin
 from django.conf.urls.static import static
-from django.conf import settings
+from user import views
+
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^api/users/', include('user.urls')),
@@ -28,8 +29,14 @@ urlpatterns = [
     url(r'^p3/',include('ppp.urls')),
     url(r'^iof/',include('iof.urls')),
     url(r'^hypernet/',include('hypernet.urls')),
+    url(r'^ffp/',include('ffp.urls')),
+    url(r'^iop/',include('iop.urls')),
     url(r'^email/', include('email_manager.urls')),
 ]
+
+handler404 = "user.views.handler404"
+
+from django.conf import settings
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

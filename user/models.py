@@ -113,6 +113,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     preferred_module = models.FloatField(default=1.0)
     associated_entity = models.ForeignKey(settings.ENTITY_MODEL, null=True, blank=True, related_name='associated_user') #When driver logs in he must know this entity id so that if he hits the APIs, he must know this id.
     one_signal_device_id = models.CharField(blank=True, null=True, max_length=100)
+    android_device_info = models.TextField(null=True, blank=True)
+    ios_device_info = models.TextField(null=True, blank=True)
     # TODO Migrate after specification is finailized
     # allowed_modules = JSONField(null=True, blank=True, max_length=100)
 
@@ -182,7 +184,14 @@ class UserAssignment(models.Model):
     def __str__(self):
         return self.name
 
-
+class UserConfirmation(models.Model):
+    first_name = models.CharField(_('first name'), max_length=30, blank=True)
+    last_name = models.CharField(_('last name'), max_length=30, blank=True)
+    contact_number = models.CharField(max_length=30, blank=True, null=True)
+    reset_token = models.CharField(max_length=50, blank=True)
+    customer = models.ForeignKey(Customer, null=True, blank=True)
+    active=models.NullBooleanField(default=False,null=True, blank=True)
+    
 class UserAssignmentHistory(models.Model):
     name = models.CharField(max_length=50)
     child = models.ForeignKey(User, related_name='user_child_history')
@@ -208,3 +217,10 @@ class ModuleAssignment(models.Model):
 
 
 
+
+
+class UserManual(models.Model):
+    file = models.FileField(upload_to='manual/',null=True,blank=True)
+
+    def __str__(self):
+        return self.file

@@ -333,25 +333,36 @@ def dump(contract, area, client, outfile_path=None):
 def entity_sub_type_method(skip_size):
     try:
         entity_sub_type = None
-        if skip_size!= None:
-            skip_size = float(skip_size)
-        else:
-            skip_size = 0
-
-        if skip_size == 0.240:
+        if IOFOptionsEnum.SKIP_SIZE_12 == skip_size:
             entity_sub_type = IOFOptionsEnum.PLASTIC
 
-        elif (skip_size) == 1.1:
+        elif IOFOptionsEnum.SKIP_SIZE_1 == skip_size:
             entity_sub_type = IOFOptionsEnum.GALVANIZED_METAL_OR_PLASTIC
 
-        elif (skip_size) == 2.5:
+        elif IOFOptionsEnum.SKIP_SIZE_2 == skip_size:
             entity_sub_type = IOFOptionsEnum.GALVANIZED_METAL
 
-        elif (skip_size) >= 5.0:
+        elif IOFOptionsEnum.SKIP_SIZE_3 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_4 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_5 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_6 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_7 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_8 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_9 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_10 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_11 == skip_size:
+            entity_sub_type = IOFOptionsEnum.METAL
+        elif IOFOptionsEnum.SKIP_SIZE_13 == skip_size:
             entity_sub_type = IOFOptionsEnum.METAL
 
         return entity_sub_type
     except:
-        print("BC")
-        print(type(skip_size))
         traceback.print_exc()

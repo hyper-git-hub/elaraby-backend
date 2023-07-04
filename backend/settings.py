@@ -22,11 +22,35 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '+dio%*kh6w@$rgd4#p&s%kng6%o86h*e&l$bqn)99*g+d@%es8'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 TESTS = DEBUG  # disable it for production - hides tests urls
 
 ALLOWED_HOSTS = ['*']
 # Application definition
+
+# CORS PROPERTY
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_HEADERS = [
+    "Access-Control-Allow-Origin",
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 
 INSTALLED_APPS = [
 
@@ -50,6 +74,8 @@ INSTALLED_APPS = [
     'ioa',
     'iof',
     'ppp',
+    'ffp',
+    'iop',
     'invitations',
     'modeltranslation',
     'django_twilio',
@@ -57,11 +83,13 @@ INSTALLED_APPS = [
     'email_manager',
 ]
 
+SITE_ID = 1
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -71,11 +99,10 @@ MIDDLEWARE = [
 
 
 ROOT_URLCONF = 'backend.urls'
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR, 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -87,7 +114,7 @@ TEMPLATES = [
         },
     },
 ]
-
+from django.middleware.common import CommonMiddleware
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 
@@ -108,7 +135,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.11/topics/i18n/
@@ -135,7 +161,7 @@ AUTH_USER_MODEL = 'user.User'
 ENTITY_MODEL = 'hypernet.Entity'
 
 # One Signal rest api key
-ONE_SIGNAL_REST_API_KEY_NEW_TAGS = 'N2ViMTRmZDgtMjc0OC00YzFkLWIzYTAtZGRmN2Y2MDFmNTFk'
+# ONE_SIGNAL_REST_API_KEY_NEW_TAGS = 'N2ViMTRmZDgtMjc0OC00YzFkLWIzYTAtZGRmN2Y2MDFmNTFk'
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
@@ -148,6 +174,8 @@ REST_FRAMEWORK = {
         # 'rest_framework.authentication.SessionAuthentication',
         #'rest_framework.authentication.BasicAuthentication',
     ),
+    'DATETIME_FORMAT': "%Y-%m-%dT%H:%M:%SZ",
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
 }
 
 
@@ -163,22 +191,23 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-SITE_ID = 1
+# SITE_ID = 1R
 
 EMAIL_HOST = 'smtpout.asia.secureserver.net'
 EMAIL_HOST_USER = 'support@hypernymbiz.com'
 EMAIL_HOST_PASSWORD = 'hypernymbiz123'
 EMAIL_PORT = 25
 EMAIL_USE_TLS = False
+PYDEVD_USE_FRAME_EVAL = False
 
 
-
-CORS_ORIGIN_ALLOW_ALL = True
 
 TWILIO_ACCOUNT_SID = 'AC5a37455e0a5492d79f53e0c33c101481'
 TWILIO_AUTH_TOKEN = '741012dba2322cc6b70f3de90d39d575'
 
 DATABASE_ROUTERS = ['hypernet.dbrouter.HypernetProxyDBRouter']
+
+GOOGLE_API_KEY = 'AIzaSyCM5E1Osn3jwG6HaqsWyB_T38foamltUfc'
 
 try:
     from .local_settings import *
@@ -186,6 +215,13 @@ try:
     INSTALLED_APPS += LOCAL_INSTALLED_APPS
 except ImportError:
     pass
+
+# ----------------------------------- Celery Configurations -------------------------------
+# BROKER_URL = 'django://' and add this app:
+#
+# INSTALLED_APPS += ('kombu.transport.django', )
+# ----------------------------------- Celery Configurations Ends -------------------------------
+
 # ----------------------------------- Logging Configuration -------------------------------
 if DEBUG:
     LOG_LEVEL = 'DEBUG'  # 'WARN' for production - have it in local_settings
@@ -246,3 +282,27 @@ LOGGING = {
     },
 }
 # ----------------------------------- Logging Configuration Ends -------------------------------
+
+
+
+# ----------------------------------- Firebase Configurations -------------------------------
+config_firebase = {
+    "apiKey": "AIzaSyBoK0nPXiHvy9ddCS2jdf-lHHkSp4OdXIw",
+    "authDomain": "projectId.firebaseapp.com",
+    "databaseURL": "https://hypernet-notifications.firebaseio.com/",
+    "storageBucket": "projectId.appspot.com",
+    "projectId": "hypernet-notifications",
+    "messagingSenderId": "766877346878",
+}
+
+# ----------------------------------- Firebase Configurations Ends -------------------------------
+
+# CORS_ORIGIN_WHITELIST = (
+#     '159.65.7.152',
+#     '159.65.7.152:85',
+#     '188.166.226.185',
+#     'http://localhost:4200'
+#     '*'
+# )
+#------------------------------------x-content-type-----------------------------------------------
+SECURE_CONTENT_TYPE_NOSNIFF = True

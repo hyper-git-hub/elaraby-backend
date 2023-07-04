@@ -50,10 +50,8 @@ ACTIVE_FRONT_END = FRONT_END_1
 7. python manage.py setupcustomer <user name> <module id>
 8. python manage.py createsuperuser
 9. python manage.py setupdevicetypes
-10. python manage.py animalstates <no_of_animals(int)>
-11. python manage.py addemailtemplate
-12.
-
+10. python manage.py addemailtemplate
+11. python manage.py iopsetupstatuses
 ```
 
 #####IOA dummy data generation commands
@@ -65,6 +63,7 @@ note 2 : add 3 rows in user_module table. i.e. ioa,iof,ppp
 3. python manage.py schedule
 4. python manage.py createactivities
 5. python manage.py aggregate
+6. python manage.py animalstates <no_of_animals(int)>
 ```
 Logistics Driver creation Command
 python manage.py setupuser <email> <password> <customer_id> <associated_entity_id>

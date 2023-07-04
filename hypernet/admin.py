@@ -6,8 +6,9 @@ from iof.models import *
 from user.models import *
 from ioa.models import *
 from customer.models import *
+from ffp.models import *
 # Register your models here.
-
+from iop.models import *
 admin.site.register(Module)
 admin.site.register(User)
 admin.site.register(ModuleAssignment)
@@ -23,6 +24,9 @@ admin.site.register(NotificationGroups)
 admin.site.register(DeviceViolation)
 admin.site.register(CustomerPreferences)
 admin.site.register(CustomerClients)
+admin.site.register(InvoiceData)
+admin.site.register(UserEntityAssignment)
+admin.site.register(EntityDocument)
 
 #PPP
 admin.site.register(PlayerDerived)
@@ -45,12 +49,20 @@ admin.site.register(ActivityQueue)
 admin.site.register(BinCollectionData)
 admin.site.register(IofShifts)
 admin.site.register(IncidentReporting)
+admin.site.register(LogisticMaintenance)
+admin.site.register(LogisticMaintenanceData)
 
 #IOA
 admin.site.register(ActivityList)
 admin.site.register(Aggregation)
 admin.site.register(Scheduling)
 admin.site.register(AnimalStates)
+
+#FFP
+admin.site.register(Tasks)
+admin.site.register(AttendanceRecord)
+admin.site.register(EmployeeViolations)
+admin.site.register(FFPDataDailyAverage)
 
 
 # Hypernet Notifications
@@ -67,3 +79,10 @@ class UserAdmin(admin.ModelAdmin):
 admin.site.register(HypernetNotification, HypernetNotificationAdmin)
 
 # admin.site.register(CustomerClients)
+
+
+#  IoP
+admin.site.register(IopDerived)
+admin.site.register(IopAggregation)
+admin.site.register(EnergyConsumption)
+admin.site.register(ApplianceQR)

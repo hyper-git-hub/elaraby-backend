@@ -6,6 +6,7 @@ from customer.models import Customer, CustomerClients
 from hypernet.enums import DeviceCategoryEnum, DeviceTypeEntityEnum, OptionsEnum, IOFOptionsEnum
 from options.models import Options
 from user.models import Module, Role, User
+from .utils import get_notification_day
 
 # Create your models here.
 class BaseModel(models.Model):
@@ -45,7 +46,6 @@ class CustomerDevice(models.Model):
         return self.device_id
 
 
-
 class Entity(models.Model):
     name = models.CharField(max_length=250)
     type = models.ForeignKey(DeviceType, on_delete=PROTECT)
@@ -58,13 +58,14 @@ class Entity(models.Model):
     end_datetime = models.DateTimeField(blank=True, null=True)
     assignments = models.FloatField(blank=True, null=True, default=0)
     # Device specific columns
+    is_enabled = models.BooleanField(default=False)
     device_name = models.ForeignKey(CustomerDevice, blank=True, null=True, on_delete=PROTECT)
     speed = models.NullBooleanField(default=False)
     volume = models.NullBooleanField(default=False)
     density = models.NullBooleanField(default=False)
     temperature = models.NullBooleanField(default=False)
     location = models.NullBooleanField(default=False)
-    registration = models.CharField(blank=True, null=True, max_length=15)
+    registration = models.CharField(blank=True, null=True, max_length=255)
     engine_number = models.CharField(blank=True, null=True, max_length=50)
     chassis_number = models.CharField(blank=True, null=True, max_length=50)
     make = models.CharField(blank=True, null=True, max_length=50)
@@ -83,8 +84,7 @@ class Entity(models.Model):
     dob = models.DateField(blank=True, null=True)
     date_of_joining = models.DateField(blank=True, null=True)
     salary = models.IntegerField(blank=True, null=True)
-    marital_status = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_marital_status_id", blank=True,
-                                       null=True)
+    marital_status = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_marital_status_id", blank=True, null=True)
     gender = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_gender_id", blank=True, null=True)
     photo = models.ImageField(upload_to='avatars/', null=True, blank=True)
     # Job fence specific columns
@@ -95,10 +95,8 @@ class Entity(models.Model):
     source_latlong = models.CharField(blank=True, null=True, max_length=250)
     job_start_datetime = models.DateTimeField(blank=True, null=True)
     job_end_datetime = models.DateTimeField(blank=True, null=True)
-    job_status = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_job_status_id", blank=True,
-                                   null=True)
-    territory_type = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_training_type_id", blank=True,
-                                       null=True)
+    job_status = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_job_status_id", blank=True, null=True)
+    territory_type = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_training_type_id", blank=True, null=True)
     territory = models.CharField(blank=True, null=True, max_length=10000)
     # Player specific columns
     age = models.IntegerField(blank=True, null=True)#Same will be use for animal
@@ -106,8 +104,7 @@ class Entity(models.Model):
     weight = models.FloatField(blank=True, null=True) #Same will be use for animal and skipsize for Contracts
     ethnicity = models.CharField(blank=True, null=True, max_length=50)
     past_club = models.CharField(blank=True, null=True, max_length=50)
-    contracted_type = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_contracted_type_id",
-                                        blank=True, null=True)
+    contracted_type = models.ForeignKey(Options, on_delete=PROTECT, related_name="entity_contracted_type_id", blank=True, null=True)
     player_position = models.CharField(blank=True, null=True, max_length=50)
 
     # Match Specific Columns
@@ -123,19 +120,23 @@ class Entity(models.Model):
     last_breeding = models.DateTimeField(blank=True, null= True, max_length=30)
 
     # Maintenance Related Fields.
-    routine_type = models.ForeignKey(Options, related_name='maintenance_routine_type', null=True, on_delete=PROTECT,
-                                     blank=True)
-    maintenance_type = models.ForeignKey(Options, related_name='options_maintenance_type_id', null=True,
-                                         on_delete=PROTECT, blank=True)
+    routine_type = models.ForeignKey(Options, related_name='maintenance_routine_type', null=True, on_delete=PROTECT, blank=True)
+    maintenance_type = models.ForeignKey(Options, related_name='options_maintenance_type_id', null=True, on_delete=PROTECT, blank=True)
 
     # Bin Specific Fields.
-    entity_sub_type = models.ForeignKey(Options, related_name='bin_sub_type_id', null=True,
-                                         on_delete=PROTECT, blank=True)
+    entity_sub_type = models.ForeignKey(Options, related_name='bin_sub_type_id', null=True, on_delete=PROTECT, blank=True)
+    skip_size = models.ForeignKey(Options, related_name='skip_size_id', null=True, on_delete=PROTECT, blank=True)
     client = models.ForeignKey(CustomerClients, related_name='hypernet_clients', null=True, blank=True, on_delete=PROTECT)
 
     start_time = models.TimeField(blank=True, null=True, db_index=True)
     end_time = models.TimeField(blank=True, null=True, db_index=True)
     skip_rate = models.FloatField(blank=True, null=True)
+    
+    #IOP device manual mode and stand
+    is_manual_mode = models.NullBooleanField(default=False)
+    is_washing_machine = models.NullBooleanField(default=False)
+    standby_mode= models.IntegerField(default=1, blank=True, null=True)
+
 
     def __str__(self):
         return self.name
@@ -206,9 +207,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "assignments": self.assignments,
             # Device specific columns
             "device_id": self.device_name.device_id,
@@ -269,9 +270,9 @@ class Entity(models.Model):
         "modified_by": self.modified_by.id if self.modified_by else None,
         "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
         "modified_by_email": self.modified_by.email if self.modified_by else None,
-        "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-        "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-        "end_datetime": str(self.end_datetime),
+        "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+        "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+        "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ'),
         "assignments": self.assignments,
         "age": self.age,
         "squad_number": self.squad_number,
@@ -322,9 +323,9 @@ class Entity(models.Model):
         "modified_by": self.modified_by.id if self.modified_by else None,
         "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
         "modified_by_email": self.modified_by.email if self.modified_by else None,
-        "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-        "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-        "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+        "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+        "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+        "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
         "email": None if not self.get_associated_user_email else self.get_associated_user_email
         }
         return driver
@@ -334,12 +335,15 @@ class Entity(models.Model):
             "id": self.id,
             "name": self.name,
             "source_latlong": None if not self.source_latlong else self.source_latlong,
+            "territory": None if not self.territory else self.territory,
             "type_name": None if not self.type else self.type.name,
             "type_id": None if not self.type else self.type_id,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
+            # "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "status": self.status.value if self.status else None,
             "status_id":self.status.id if self.status else None,
+            "skip_size": self.skip_size.id if self.skip_size else None
 
         }
         return truck
@@ -351,11 +355,14 @@ class Entity(models.Model):
             "source_latlong": None if not self.source_latlong else self.source_latlong,
             "type_name": None if not self.type else self.type.name,
             "type_id": None if not self.type else self.type_id,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "status": self.status.value if self.status else None,
             "status_id":self.status.id if self.status else None,
-            "party_code": self.client.party_code if self.client else None,
+            "skip_size": self.skip_size.label if self.skip_size else None,
+            "skip_rate": self.skip_rate,
+            "client_name":self.client.name,
+            "party_code":self.client.party_code,
         }
         return truck
 
@@ -380,9 +387,9 @@ class Entity(models.Model):
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
             "assignments": self.assignments,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "speed": self.speed,
             "squad_number": None if not self.squad_number else self.squad_number,
             "volume": self.volume,
@@ -404,8 +411,6 @@ class Entity(models.Model):
             "obd2_compliant": self.obd2_compliant,
             "leased_owned": self.leased_owned.value if self.leased_owned else None,
             "leased_owned_id": self.leased_owned.id if self.leased_owned else None,
-            "assigned_territory_name": None if not self.get_territory_of_truck else self.get_territory_of_truck.name,
-            "assigned_territory_id": None if not self.get_territory_of_truck else self.get_territory_of_truck.id,
             "entity_sub_type": self.entity_sub_type.id if self.entity_sub_type else None,
             "entity_sub_type_name": self.entity_sub_type.label if self.entity_sub_type else None,
             "threshold_value": self.get_device_violations,
@@ -424,9 +429,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "description": self.description,
             "source_address": self.source_address,
             "destination_address": self.destination_address,
@@ -451,9 +456,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "description": self.description,
             "territory_type": None if not self.territory_type else self.territory_type.label,
             "territory_type_id": None if not self.territory_type else self.territory_type.id,
@@ -472,9 +477,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "description": self.description,
             "maintenance_type": None if not self.maintenance_type else self.maintenance_type.label,
             "maintenance_type_id": None if not self.maintenance_type else self.maintenance_type.id,
@@ -500,11 +505,11 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
             "source_lat_lng": self.source_latlong,
             "destination_lat_lng": self.destination_latlong,
-            "end_datetime": str(self.end_datetime),
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ'),
             "assignments": self.assignments,
             # Job fence specific columns
             "description": self.description,
@@ -531,9 +536,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "assignments": self.assignments,
             "volume" : self.volume,
             "source_address": self.source_latlong,
@@ -543,11 +548,16 @@ class Entity(models.Model):
             "client_contact_number": None if not self.client else self.client.contact_number,
             "client_name": None if not self.client else self.client.name,
             "party_code": None if not self.client else self.client.party_code,
-            "description": self.description,
-            "operational": self.obd2_compliant,
+            "description": self.description if self.description else None,
+            "operational": self.obd2_compliant if self.obd2_compliant else None,
             "entity_sub_type": self.entity_sub_type.id if self.entity_sub_type else None,
             "entity_sub_type_name": self.entity_sub_type.label if self.entity_sub_type else None,
-            "skip_size": self.weight,
+            "skip_size": self.skip_size.id if self.skip_size else None,
+            "skip_size_name": self.skip_size.label if self.skip_size else None,
+            "leased_owned": self.leased_owned.value if self.leased_owned else None,
+            "leased_owned_id": self.leased_owned.id if self.leased_owned else None,
+            "skip_rate": self.skip_rate,
+            
         }
         return bin
 
@@ -562,9 +572,9 @@ class Entity(models.Model):
             "modified_by": self.modified_by.id if self.modified_by else None,
             "modified_by_name": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
             "modified_by_email": self.modified_by.email if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
-            "end_datetime": str(self.end_datetime) if self.end_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
+            "end_datetime": self.end_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.end_datetime else None,
             "description": self.description,
             "assigned_truck": None if not self.get_truck else self.get_truck.as_entity_json(),
 
@@ -580,10 +590,18 @@ class Entity(models.Model):
             "status_id": None if not self.status else self.status.id,
             "status": None if not self.status else self.status.label,
             "modified_by": self.modified_by.first_name + self.modified_by.last_name if self.modified_by else None,
-            "created_datetime": str(self.created_datetime) if self.created_datetime else None,
-            "modified_datetime": str(self.modified_datetime) if self.modified_datetime else None,
+            "created_datetime": self.created_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.created_datetime else None,
+            "modified_datetime": self.modified_datetime.strftime('%Y-%m-%dT%H:%M:%SZ') if self.modified_datetime else None,
             "obd2_compliant": self.obd2_compliant,
         }
+
+
+class EntityDocument(models.Model):
+    entity = models.ForeignKey(Entity)
+    file = models.FileField(upload_to='documents/')
+
+    def __str__(self):
+        return self.entity.name + ' assigned ' + self.file.name
 
 
 class EntityMap(models.Model):
@@ -621,6 +639,46 @@ class EntityAssociative(models.Model):
 
     def __str__(self):
         return self.entity.name
+
+
+class UserEntityAssignment(models.Model):
+    comments = models.CharField(max_length=1500)
+    device = models.ForeignKey(Entity, related_name='user_device_assignment_device')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='user_device_assignment_user')
+    can_edit = models.BooleanField(default=True)
+    can_read = models.BooleanField(default=True)
+    can_remove = models.BooleanField(default=True)
+    can_share = models.BooleanField(default=True)
+    is_admin = models.BooleanField(default=False)
+    customer = models.ForeignKey(Customer)
+    module = models.ForeignKey(Module)
+    type = models.ForeignKey(DeviceType)
+    status = models.ForeignKey(Options)
+    modified_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='user_device_assignment_modified_by')
+    modified_datetime = models.DateTimeField(blank=True, null=True)
+    created_datetime = models.DateTimeField(auto_now_add=True, db_index=True)
+    end_datetime = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return self.device.name + " assigned to user:  "+ self.user.email
+
+    def users_assignments_as_json(self):
+        data_dict = {
+            "user_email": self.user.email,
+            "first_name": self.user.first_name,
+            "last_name": self.user.last_name,
+            "status_label": self.status.label,
+            "status_id": self.status_id,
+            "user_id": self.user_id,
+            "privileges": {
+                "is_admin": self.is_admin,
+                "can_edit": self.can_edit,
+                "can_read": self.can_read,
+                "can_remove": self.can_remove,
+                "can_share": self.can_share,
+            }
+        }
+        return data_dict
 
 
 class Assignment(models.Model):
@@ -856,13 +914,14 @@ class HypernetPreData(models.Model):
     timestamp = models.DateTimeField(null=False, db_index=True)
     volume = models.DecimalField(decimal_places=3, null=True, blank=True, max_digits=20)
     temperature = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
+    ambient_temperature = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
     density = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
     speed = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
-    latitude = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
-    longitude = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
-    harsh_braking = models.BooleanField(default=False)
+    latitude = models.DecimalField(decimal_places=10, null=True, blank=True,max_digits=20)
+    longitude = models.DecimalField(decimal_places=10, null=True, blank=True,max_digits=20)
+    harsh_braking = models.BooleanField(default=False) #chs = on and off status
     harsh_acceleration = models.BooleanField(default=False)
-    trip = models.BooleanField(default=False)
+    trip = models.NullBooleanField(default=None)   #in FFP, trip is used to check active/inactive
     timezone = models.CharField(null=True, blank=True, max_length=25)
     nn_interval = models.IntegerField(null=True, blank=True)
     accelerometer_1 = models.DecimalField(decimal_places=3, null=True, blank=True, max_digits=20)
@@ -875,11 +934,21 @@ class HypernetPreData(models.Model):
     breathingrate_avg = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
     breathingrate_min = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
     breathingrate_max = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
-    duration = models.IntegerField(null=True, blank=True)
+    duration = models.IntegerField(null=True, blank=True) #in FFP, duration ==> steps.
     heartrate_value = models.IntegerField(null=True, blank=True)
     heartrate_recovery = models.IntegerField(null=True, blank=True)
     distance_by_sensor = models.DecimalField(decimal_places=3, null=True, blank=True, max_digits=20)
     validity = models.BooleanField(default=True)
+    active_score = models.IntegerField(null=True, blank=True) #current temperature threshold
+    inactive_score = models.IntegerField(null=True, blank=True) #error code.
+    debug_key = models.CharField(null=True, blank=True, max_length=255)
+    ctt = models.IntegerField(null=True, blank=True)
+    clm=models.PositiveIntegerField(null=True, blank=True)
+    cdt=models.IntegerField(null=True, blank=True)
+
+
+    def __str__(self):
+        return self.device.name + '  -  ' + 'Time: ' + str(self.timestamp)
 
 class HypernetPostData(models.Model):
     device = models.ForeignKey(Entity, related_name='post_data_device_id')
@@ -888,14 +957,18 @@ class HypernetPostData(models.Model):
     type = models.ForeignKey(DeviceType)
     timestamp = models.DateTimeField(null=False, db_index=True)
     volume = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
+    raw_volume = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
     temperature = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
+    raw_temperature = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
+    ambient_temperature = models.DecimalField(decimal_places=3, null=True, blank=True,max_digits=20)
     density = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
     speed = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
-    latitude = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
-    longitude = models.DecimalField(decimal_places=3, null=True, blank=True,  max_digits=20)
-    harsh_braking = models.BooleanField(null=False, default=False)
+    #FIXME decimal_places to be 6 atleast
+    latitude = models.DecimalField(decimal_places=10, null=True, blank=True,  max_digits=20)
+    longitude = models.DecimalField(decimal_places=10, null=True, blank=True,  max_digits=20)
+    harsh_braking = models.BooleanField(null=False, default=False) #on off status of device
     harsh_acceleration = models.BooleanField(null=False, default=False)
-    trip = models.BooleanField(null=False, default=False)
+    trip = models.NullBooleanField(default=None)
     created_datetime = models.DateTimeField(auto_now_add=True, db_index=True)
     timezone = models.CharField(null=True, blank=True, max_length=25)
     nn_interval = models.IntegerField(null=True, blank=True)
@@ -914,21 +987,30 @@ class HypernetPostData(models.Model):
     heartrate_recovery = models.IntegerField(null=True, blank=True)
     distance_by_sensor = models.DecimalField(decimal_places=3, null=True, blank=True, max_digits=20)
     validity = models.BooleanField(default=True)
-    
+
     processed = models.BooleanField(default=False)
     live = models.BooleanField(default=True)
     distance_travelled = models.DecimalField(decimal_places=3, null=True, max_digits=20)
     volume_consumed = models.DecimalField(decimal_places=3, null=True, max_digits=20)
 
+    active_score = models.IntegerField(null=True, blank=True)  #current temperature threshold
+    inactive_score = models.IntegerField(null=True, blank=True) #error code.
+    debug_key = models.CharField(null=True, blank=True, max_length=255)
+    ctt = models.IntegerField(null=True, blank=True)
+    clm=models.PositiveIntegerField(null=True, blank=True)
+    cdt=models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return self.device.name + '  -  ' +'Time: ' + str(self.timestamp)
 
 class HypernetNotification(models.Model):
     from iof.models import Activity, ActivityQueue
 
     device = models.ForeignKey(Entity, related_name='notification_data_device_id', null=True, blank=True)
     timestamp = models.DateTimeField(null=False, db_index=True)
-    violation_type = models.ForeignKey(Options, on_delete=PROTECT, related_name='violation_type_id', null=True)
+    violation_type = models.ForeignKey(Options, on_delete=PROTECT, related_name='violation_type_id', null=True, blank=True)
     threshold = models.DecimalField(decimal_places=3, null=True, max_digits=20, blank=True)
-    value = models.DecimalField(decimal_places=3, null=True, max_digits=20, blank=True)
+    value = models.IntegerField(null=True, blank=True)
     latitude = models.DecimalField(decimal_places=3, null=True, max_digits=20, blank=True)
     longitude = models.DecimalField(decimal_places=3, null=True, max_digits=20, blank=True)
     activity = models.ForeignKey(Activity, related_name='notification_job_id', null=True, blank=True)
@@ -936,14 +1018,13 @@ class HypernetNotification(models.Model):
     created_datetime = models.DateTimeField(auto_now_add=True, db_index=True)
     customer = models.ForeignKey(Customer)  # for report filtering.
     module = models.ForeignKey(Module)  # for report filtering.
-    title = models.CharField(blank=True, null=True, max_length=100)
+    title = models.CharField(blank=True, null=True, max_length=1000)
     status = models.ForeignKey(Options, on_delete=PROTECT, related_name='notification_status_id', null=True)
     description = models.CharField(max_length=1500, null=True, blank=True)
     # is_viewed = models.BooleanField(default=False)  # in through table - NotificationGroups
     threshold_string = models.CharField(blank=True, null=True, max_length=50)
     user = models.ManyToManyField(User, through='NotificationGroups')  # user to receive the notification
-    type = models.ForeignKey(Options, on_delete=PROTECT,
-                               related_name="notification_type_id")
+    type = models.ForeignKey(Options, on_delete=PROTECT, related_name="notification_type_id")
 
     def animal_alert_to_dict(self):
         if self is not None:
@@ -970,8 +1051,8 @@ class HypernetNotification(models.Model):
                                                                            email=F('user__email')).values('viewed',
                                                                                                           'email')),
                 }
-    def as_job_notification_json(self):
 
+    def as_job_notification_json(self):
         job_notification = {
             'assigned_device': None if not self.device else self.device.name,
             'assigned_device_id': None if not self.device else self.device.id,
@@ -992,10 +1073,13 @@ class HypernetNotification(models.Model):
                                                                                                   'email')),
             'notification_type': self.type_id,
             'driver_id': self.driver_id if self.driver else None,
-            'driver_name': self.driver.name if self.driver else None
-            #'queue_id': self.queue.id if self.queue else None
+            'driver_name': self.driver.name if self.driver else None,
+            'day': get_notification_day(self)
         }
         return job_notification
+
+    def __str__(self):
+        return self.device.name if self.device else 'No device'+ '-' + self.title
 
 
 class Devices(models.Model):
@@ -1003,10 +1087,29 @@ class Devices(models.Model):
     timestamp = models.DateTimeField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    def __str__(self):
+        return self.device.name + ' Updated at: ' + str(self.timestamp)
+
 
 class NotificationGroups(models.Model):
     notification = models.ForeignKey(HypernetNotification)
     user = models.ForeignKey(User, null=True)
     is_viewed = models.BooleanField(default=False)
 
+
+class InvoiceData(models.Model):
+    invoice_number = models.CharField(blank=True, null=True, max_length=1000)
+    customer = models.ForeignKey(Customer)  # for report filtering.
+    module = models.ForeignKey(Module)  # for report filtering.
+    created_datetime = models.DateTimeField(auto_now_add=True, db_index=True)
+    client = models.ForeignKey(CustomerClients, null=True, blank=True, on_delete=PROTECT)
+    contract = models.ForeignKey(Entity, related_name='invoice_contract_id', null=True, blank=True)
+    contract_type = models.ForeignKey(Options, related_name='invoice_contract_type_id', null=True, on_delete=PROTECT,
+                                        blank=True)
+    area = models.ForeignKey(Entity, related_name='invoice_area_id', null=True, blank=True)
+    start_datetime = models.DateTimeField(blank=True, null=True)
+    end_datetime = models.DateTimeField(blank=True, null=True)
+    payment_status = models.BooleanField(default=False)
+    total_sum = models.DecimalField(decimal_places=3, null=True, max_digits=20, blank=True)
+    invoice_path = models.CharField(blank=True, null=True, max_length=1000)
 
