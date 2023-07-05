@@ -14,8 +14,8 @@ COPY . .
 
 RUN cp env-dev .env
 
-RUN ["chmod", "+x", "/app/entry-point.sh"]
+RUN ["chmod", "+x", "/entry-point.sh"]
 
 EXPOSE 80
 
-CMD ["/app/entry-point.sh"]
+CMD ["/entry-point.sh"]
