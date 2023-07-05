@@ -11,9 +11,13 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 """
 
 import os, datetime
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
@@ -160,6 +164,18 @@ AUTH_USER_MODEL = 'user.User'
 
 ENTITY_MODEL = 'hypernet.Entity'
 
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': os.environ.get('DATABASE_NAME'),
+        'USER': os.environ.get('DATABASE_USER'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD'),
+        'HOST': os.environ.get('DATABASE_HOST'),
+        'PORT': os.environ.get('DATABASE_PORT'),
+    }
+}
+
 # One Signal rest api key
 # ONE_SIGNAL_REST_API_KEY_NEW_TAGS = 'N2ViMTRmZDgtMjc0OC00YzFkLWIzYTAtZGRmN2Y2MDFmNTFk'
 
@@ -209,12 +225,12 @@ DATABASE_ROUTERS = ['hypernet.dbrouter.HypernetProxyDBRouter']
 
 GOOGLE_API_KEY = 'AIzaSyCM5E1Osn3jwG6HaqsWyB_T38foamltUfc'
 
-try:
-    from .local_settings import *
-
-    INSTALLED_APPS += LOCAL_INSTALLED_APPS
-except ImportError:
-    pass
+# try:
+#     from .local_settings import *
+#
+#     INSTALLED_APPS += LOCAL_INSTALLED_APPS
+# except ImportError:
+#     pass
 
 # ----------------------------------- Celery Configurations -------------------------------
 # BROKER_URL = 'django://' and add this app:
