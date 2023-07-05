@@ -13,9 +13,3 @@ RUN pip install -r requirements.txt
 COPY . .
 
 RUN cp env-dev .env
-
-RUN ["chmod", "+x", "/entry-point.sh"]
-
-EXPOSE 80
-
-CMD ["/entry-point.sh"]
