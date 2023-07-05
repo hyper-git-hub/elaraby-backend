@@ -18,4 +18,4 @@ RUN ["chmod", "+x", "/app/entry-point.sh"]
 
 EXPOSE 80
 
-CMD ["/entry-point.sh"]
+CMD ["/app/entry-point.sh"]
