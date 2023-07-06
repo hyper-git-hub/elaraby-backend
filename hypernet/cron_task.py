@@ -10,7 +10,7 @@ from rest_framework.decorators import api_view
 
 from django.core.mail import send_mail, EmailMultiAlternatives
 from twilio.rest import Client as client
-from backend import settings, local_settings
+# from backend import settings, local_settings
 from ffp.cron_utils import get_geofence_violations, polygon_operations, check_employee_active_status
 from ioa.tests.report_test import ReportViewInvoice
 from user.enums import RoleTypeEnum
@@ -1797,7 +1797,7 @@ def check_site_zone_violation(request=None):
                     print("No employee data available.")
 
 
-# @api_view(['GET'])
+@api_view(['GET'])
 def generate_daily_invoices(request=None):
     customers = Customer.objects.all()
     year = date_time.datetime.now().year
@@ -1806,7 +1806,7 @@ def generate_daily_invoices(request=None):
 
     s_date = str(date_time.datetime(year, month, day, 0, 0, 0))
     e_date = str(date_time.datetime(year, month, day, 23, 59, 0))
-    file_url = local_settings.SERVER_URL
+    file_url = ''
     for customer in customers:
         email_body = '<body style="background:#b3dcf2;">' \
                      '<div style="max-width:600px; margin:auto; padding:30px; background:#ffffff; margin-top:30px; margin-bottom:30px; font-family:'"'Trebuchet MS'"',Arial;">' \
@@ -1814,8 +1814,7 @@ def generate_daily_invoices(request=None):
                      '<tr> ' \
                      '<td align="left"> ' \
                      '   <div style="font-size:36px; margin-bottom:20px; color:green"> <img src="http://design.hypernymbiz.com/zenath/icon-invoice.png" height="36" /> ' + customer.name + ' Invoice</div> ' \
-                                                                                                                                                                                           '<div style="font-size:14px; color:#808080; margin-bottom:5px;">From: <b style="color:#555;">' + s_date + '</b>  </div> ' \
-                                                                                                                                                                                                                                                                                                     '<div style="font-size:14px; color:#808080;">To: <b style="color:#555;">' + e_date + '</b>  </div> ' \
+                                                                                                                                                                                                                                                                                                 '<div style="font-size:14px; color:#808080;">To: <b style="color:#555;">' + e_date + '</b>  </div> ' \
                                                                                                                                                                                                                                                                                                                                                                                           '</td>' \
                                                                                                                                                                                                                                                                                                                                                                                           '<td style="text-align:right;"> <img src="http://design.hypernymbiz.com/zenath/zenath-logo.png" height="80" /> </td> ' \
                                                                                                                                                                                                                                                                                                                                                                                           '</tr> ' \
@@ -1882,7 +1881,7 @@ def generate_weekly_invoices(request=None):
     s1_date = e1_date - timedelta(days=7)
     s_date = str(s1_date)
     e_date = str(e1_date)
-    file_url = local_settings.SERVER_URL
+    file_url = ''
     for customer in customers:
         email_body = '<body style="background:#b3dcf2;">' \
                      '<div style="max-width:600px; margin:auto; padding:30px; background:#ffffff; margin-top:30px; margin-bottom:30px; font-family:'"'Trebuchet MS'"',Arial;">' \
@@ -1959,7 +1958,7 @@ def generate_monthly_invoices(request=None):
     date_ranges = calendar.monthrange(year, month)
     s_date = str(date_time.datetime(year, month, 1))
     e_date = str(date_time.datetime(year, month, date_ranges[1]))
-    file_url = local_settings.SERVER_URL
+    file_url = ''
     for customer in customers:
         email_body = '<body  style="background:#b3dcf2;">' \
                      '<div style="max-width:600px; margin:auto; padding:30px; background:#ffffff; margin-top:30px; margin-bottom:30px; font-family:'"'Trebuchet MS'"',Arial;">' \
@@ -2132,7 +2131,7 @@ def contracts_report_monthly(request=None):
     date_ranges = calendar.monthrange(year, month)
     s_date = str(date_time.datetime(year, month, 1))
     e_date = str(date_time.datetime(year, month, date_ranges[1]))
-    file_url = local_settings.SERVER_URL
+    file_url = ''
     new_contracts = []
     renewed_contracts = []
     expired_contracts = []
@@ -2320,7 +2319,7 @@ def non_active_bins(request=None):
     date_ranges = calendar.monthrange(year, month)
     s_date = str(date_time.datetime(year, month, 1))
     e_date = str(date_time.datetime(year, month, date_ranges[1]))
-    file_url = local_settings.SERVER_URL
+    file_url = ''
     bin_list = []
     current_month = date_time.datetime.today().month
     current_year = date_time.datetime.today().year
