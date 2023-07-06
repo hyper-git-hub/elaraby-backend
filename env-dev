@@ -1,4 +1,4 @@
-DATABASE_NAME = eleraby_db
+DATABASE_NAME = postgres
 DATABASE_USER=root
 DATABASE_PASSWORD=a654f0f2a951d2e9
 DATABASE_HOST=srv-captain--backend-db
