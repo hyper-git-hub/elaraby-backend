@@ -1,4 +1,4 @@
-from backend import local_settings
+# from backend import local_settings
 from .models import *
 from django.core.mail import EmailMultiAlternatives
 import traceback
@@ -75,22 +75,22 @@ def extended_email_with_title(title, subject, to_list=[], cc_list=[], bcc_list=[
         traceback.print_exc()
 
 
-def create_default_email_template():
-    try:
-        email_body_text = '<body style="background:#f9f9f9;"><div style="max-width:600px; margin:auto; padding:30px; background:#ffffff; margin-top:30px;">' \
-                     '<table style="width:100%;"><tr><td align="center" style="border-bottom: 1px solid #eee; padding-bottom: 20px;">' \
-                     '<img src="http://www.hypernymbiz.com/img/hypernym-logo-color.png" height="80" />' \
-                     '</td></tr><tr><td > <div style="font-family:Arial; font-size:24px; color:#b8a000; padding-top:50px; padding-bottom:20px; text-align:center;">Welcome to Hypernet</div>' \
-                     '</td></tr><tr><td> <div style="font-family:Arial; font-size:14px; color:#555; padding-top:20px; padding-bottom:20px; text-align:center;">{text}'\
-                     '<a href="http://{1}/reset_password/?reset_password={0}"> Click here to proceed.</a></div></td></tr></table></div></body>'
-
-        email_body_text = evariableReplace(email_body_text, {'{1}':local_settings.ACTIVE_FRONT_END})
-
-        email_template = Template()
-        email_template.email_key = "create_user"
-        email_template.subject = "Complete Signup to your Hypernymbiz Account"
-        email_template.from_email = "no_reply@hypernymbiz.com"
-        email_template.email_body = email_body_text
-        email_template.save()
-    except:
-        traceback.print_exc()
+# def create_default_email_template():
+#     try:
+#         email_body_text = '<body style="background:#f9f9f9;"><div style="max-width:600px; margin:auto; padding:30px; background:#ffffff; margin-top:30px;">' \
+#                      '<table style="width:100%;"><tr><td align="center" style="border-bottom: 1px solid #eee; padding-bottom: 20px;">' \
+#                      '<img src="http://www.hypernymbiz.com/img/hypernym-logo-color.png" height="80" />' \
+#                      '</td></tr><tr><td > <div style="font-family:Arial; font-size:24px; color:#b8a000; padding-top:50px; padding-bottom:20px; text-align:center;">Welcome to Hypernet</div>' \
+#                      '</td></tr><tr><td> <div style="font-family:Arial; font-size:14px; color:#555; padding-top:20px; padding-bottom:20px; text-align:center;">{text}'\
+#                      '<a href="http://{1}/reset_password/?reset_password={0}"> Click here to proceed.</a></div></td></tr></table></div></body>'
+#
+#         email_body_text = evariableReplace(email_body_text, {'{1}':local_settings.ACTIVE_FRONT_END})
+#
+#         email_template = Template()
+#         email_template.email_key = "create_user"
+#         email_template.subject = "Complete Signup to your Hypernymbiz Account"
+#         email_template.from_email = "no_reply@hypernymbiz.com"
+#         email_template.email_body = email_body_text
+#         email_template.save()
+#     except:
+#         traceback.print_exc()
