@@ -116,7 +116,8 @@ class UserCreateAPIView(CreateAPIView):
 #         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
 
 
-class UserLoginAPIView(APIView):
+class \
+        UserLoginAPIView(APIView):
     # soban
     permission_classes = [AllowAny]
 
@@ -137,6 +138,7 @@ class UserLoginAPIView(APIView):
         if email and password:
             user = authenticate(username=email, password=password)
             if user:
+                print("authenticated")
                 # try:
                 #     Token.objects.get(user_id=user.id).delete()
                 # except :
