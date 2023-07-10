@@ -140,6 +140,7 @@ class \
             if email and password:
                 # user = authenticate(username=email, password=password)
                 user = User.objects.filter(email = email)
+                print("user: ",user)
                 if user.exists():
                     user = user.last()
                     if user.check_password(password):
