@@ -135,6 +135,7 @@ class \
         email = get_data_param(request, 'email', None)
         password = get_data_param(request, 'password', None)
         push_key = get_data_param(request, 'push_key', None)
+        print("request", email)
         if email and password:
             user = authenticate(username=email, password=password)
             if user:
