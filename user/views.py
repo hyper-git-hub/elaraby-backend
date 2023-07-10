@@ -180,7 +180,9 @@ class \
                             user.last_login = timezone.now()
                             user.save()
                             return Response(response_json(HTTP_SUCCESS_CODE, data, None))  # TODO: Will be removed later.
-                return Response(response_json(HTTP_ERROR_CODE, None, 'Wrong username or password'))
+
+                    return Response(response_json(HTTP_ERROR_CODE, None, 'Wrong username or password'))
+                return Response(response_json(HTTP_ERROR_CODE, None, 'USER DOES NOT EXIST'))
             return Response(response_json(HTTP_ERROR_CODE, None, constants.TEXT_PARAMS_MISSING))
         except Exception as e:
             print(e)
