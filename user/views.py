@@ -138,43 +138,47 @@ class \
             push_key = get_data_param(request, 'push_key', None)
             print("request", email)
             if email and password:
-                user = authenticate(username=email, password=password)
-                if user:
-                    print("authenticated")
-                    # try:
-                    #     Token.objects.get(user_id=user.id).delete()
-                    # except :
-                    #     pass
+                # user = authenticate(username=email, password=password)
+                user = User.objects.filter(email = email)
+                if user.exists():
+                    user = user.last()
+                    if user.check_password(password):
+                        if user:
+                            print("authenticated")
+                            # try:
+                            #     Token.objects.get(user_id=user.id).delete()
+                            # except :
+                            #     pass
 
-                    token = Token.objects.get_or_create(user=user)
-                    user_serializer = UserLoginSerializer(user)
-                    user_modules = ModuleAssignment.objects.filter(customer=user.customer)
-                    customer_serializer = CustomerListSerializer(user.customer)
-                    data = user_serializer.data
-                    data['customer'] = customer_serializer.data
-                    data['token'] = token[0].key
-                    data['user_role_id'] = None if not user.role else user.role.id
-                    data['user_role_name'] = None if not user.role else user.role.name
-                    data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
-                    data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
-                    data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
-                    if int(user.preferred_module) == ModuleEnum.FFP:
-                        if user.associated_entity:
-                            site_or_zone = get_site_or_zone_of_supervisor(s_sup_id=user.associated_entity, get_zone=True)
-                            if user.associated_entity.entity_sub_type_id == FFPOptionsEnum.SITE_SUPERVISOR and site_or_zone:
-                                data['site'] = site_or_zone.name
-                                data['site_id'] = site_or_zone.id
-                            elif (
-                                            user.associated_entity.entity_sub_type_id == FFPOptionsEnum.ZONE_SUPERVISOR or FFPOptionsEnum.TEAM_SUPERVISOR) and site_or_zone:
-                                data['zone'] = site_or_zone.name
-                                data['zone_id'] = site_or_zone.id
+                            token = Token.objects.get_or_create(user=user)
+                            user_serializer = UserLoginSerializer(user)
+                            user_modules = ModuleAssignment.objects.filter(customer=user.customer)
+                            customer_serializer = CustomerListSerializer(user.customer)
+                            data = user_serializer.data
+                            data['customer'] = customer_serializer.data
+                            data['token'] = token[0].key
+                            data['user_role_id'] = None if not user.role else user.role.id
+                            data['user_role_name'] = None if not user.role else user.role.name
+                            data['avatar'] = None if not user.avatar else request.build_absolute_uri(user.avatar.url)
+                            data['module'] = [user_module.module.as_json_module() for user_module in user_modules]
+                            data['user_entity_type'] = user.associated_entity.entity_sub_type_id if user.associated_entity else None
+                            if int(user.preferred_module) == ModuleEnum.FFP:
+                                if user.associated_entity:
+                                    site_or_zone = get_site_or_zone_of_supervisor(s_sup_id=user.associated_entity, get_zone=True)
+                                    if user.associated_entity.entity_sub_type_id == FFPOptionsEnum.SITE_SUPERVISOR and site_or_zone:
+                                        data['site'] = site_or_zone.name
+                                        data['site_id'] = site_or_zone.id
+                                    elif (
+                                                    user.associated_entity.entity_sub_type_id == FFPOptionsEnum.ZONE_SUPERVISOR or FFPOptionsEnum.TEAM_SUPERVISOR) and site_or_zone:
+                                        data['zone'] = site_or_zone.name
+                                        data['zone_id'] = site_or_zone.id
 
-                    if push_key:
-                        user.one_signal_device_id = push_key
-                        user.save()
-                    user.last_login = timezone.now()
-                    user.save()
-                    return Response(response_json(HTTP_SUCCESS_CODE, data, None))  # TODO: Will be removed later.
+                            if push_key:
+                                user.one_signal_device_id = push_key
+                                user.save()
+                            user.last_login = timezone.now()
+                            user.save()
+                            return Response(response_json(HTTP_SUCCESS_CODE, data, None))  # TODO: Will be removed later.
                 return Response(response_json(HTTP_ERROR_CODE, None, 'Wrong username or password'))
             return Response(response_json(HTTP_ERROR_CODE, None, constants.TEXT_PARAMS_MISSING))
         except Exception as e:
