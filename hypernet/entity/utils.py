@@ -1507,7 +1507,7 @@ def retry_mechanism_signal_clm_mode_device(entity_obj,lock_mode):
     try:
         device_id=entity_obj.device_name.device_id
         print(device_id)
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -1515,7 +1515,7 @@ def retry_mechanism_signal_clm_mode_device(entity_obj,lock_mode):
                                 'payload': {'l': '{}'.format(str(lock_mode)), },
                                 'responseTimeoutInSeconds': 30},
                         headers={
-                            'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                            'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                         )
         print("RESPONSE CODE FROM SIGNALR HIT for LOck Mode: ", res)
@@ -1532,7 +1532,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
             
             
             shs=1 #this is for on
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1540,7 +1540,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1548,7 +1548,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
         
         elif standby_id==2:
             shs=2 #this is standby
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1556,7 +1556,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1564,7 +1564,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
         
         else:
             shs=3 #this is off
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1572,7 +1572,7 @@ def retry_mechanism_signal_shs_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1603,7 +1603,7 @@ def change_standby_mode_device(entity_obj,standby_id):
             
             
             shs=3 #this is for on
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1611,7 +1611,7 @@ def change_standby_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1619,7 +1619,7 @@ def change_standby_mode_device(entity_obj,standby_id):
         
         elif standby_id==2:
             shs=1 #this for off
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1627,7 +1627,7 @@ def change_standby_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1635,7 +1635,7 @@ def change_standby_mode_device(entity_obj,standby_id):
         
         else:
             shs=2 #this is standby
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -1643,7 +1643,7 @@ def change_standby_mode_device(entity_obj,standby_id):
                                     'payload': {'s': '{}'.format(shs), },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res)
@@ -1685,7 +1685,7 @@ def set_device_temperature_to_idle(ent, temp):  # util for setting stt of device
 
     try:
         print('ent device:  ', ent.device_name.device_id)
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device_name.device_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device_name.device_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -1693,7 +1693,7 @@ def set_device_temperature_to_idle(ent, temp):  # util for setting stt of device
                                                                     },
                                 'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -1710,7 +1710,7 @@ def set_device_lock_mode(ent, lock_mode):  # util for setting stt of device to d
     try:
         print(str(lock_mode),'jasdjasdjasjdnasjdnjasndjsjdnajsndjasndjnasjdnasjdnjasndjasnjdnasj')
         print('ent device:  ', ent.device_name.device_id)
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device_name.device_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device_name.device_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -1718,7 +1718,7 @@ def set_device_lock_mode(ent, lock_mode):  # util for setting stt of device to d
                                                                     },
                                 'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
         print("RESPONSE CODE FROM SIGNALR HIT for set lock mode: ", res.status_code)

@@ -770,7 +770,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
 
     try:
         print(obj.device_name.device_id,'get obj name')
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(obj.device_name.device_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(obj.device_name.device_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -778,7 +778,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
                                                                     },
                                 'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
         print("RESPONSE disable mode is true: ", res.status_code)
@@ -789,7 +789,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
     except Exception as f:
         print(f)
         print("INSIDE ELSE IN SET TEMP !!!!!!!!!!!!!!!")
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(
             obj.device_name.device_id)
 
         print("URL : ", url)
@@ -798,7 +798,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
                                                                     },
                                     'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -811,7 +811,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
     
 def set_device_temperature_for_quick_sch(obj, temp):  # util for setting stt of device to desired temperature
     try:
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(obj.device_name.device_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(obj.device_name.device_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -819,7 +819,7 @@ def set_device_temperature_for_quick_sch(obj, temp):  # util for setting stt of 
                                 'payload': {'t': '{}'.format(temp), },
                                 'responseTimeoutInSeconds': 30},
                             headers={
-                                'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -842,7 +842,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
         else:
             appliance_id = None
 
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(appliance_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(appliance_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -850,7 +850,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
                                 'payload': {'t': '{}'.format(temp), },
                                 'responseTimeoutInSeconds': 30},
                           headers={
-                              'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                              'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                           )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -862,7 +862,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
         try:
             print("INSIDE ELSE IN SET TEMP !!!!!!!!!!!!!!!")
             print('ent device:  ', ent)
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device.device_name.device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device.device_name.device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -870,7 +870,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
                                                                      },
                                     'responseTimeoutInSeconds': 30},
                               headers={
-                                  'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                  'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                               )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -882,7 +882,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
             print(f)
             print("INSIDE ELSE IN SET TEMP !!!!!!!!!!!!!!!")
             print('ent device:  ', ent)
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(
                 ent.device_name.device_id)
 
             print("URL : ", url)
@@ -891,7 +891,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
                                                                        },
                                       'responseTimeoutInSeconds': 30},
                                 headers={
-                                    'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                    'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                                 )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -915,7 +915,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
         else:
             appliance_id = None
 
-        url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(appliance_id)
+        url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(appliance_id)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -923,7 +923,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
                                 'payload': {'t': '{}'.format(temp), },
                                 'responseTimeoutInSeconds': 30},
                           headers={
-                              'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                              'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                           )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
@@ -935,7 +935,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
         try:
             print("INSIDE ELSE IN SET TEMP !!!!!!!!!!!!!!!")
             print('ent device:  ', ent)
-            url = 'https://Hypernet-Elaraby.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device.device_name.device_id)
+            url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device.device_name.device_id)
 
             print("URL : ", url)
             res = requests.post(url=url,
@@ -943,7 +943,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
                                                                      },
                                     'responseTimeoutInSeconds': 30},
                               headers={
-                                  'Authorization': 'SharedAccessSignature sr=Hypernet-Elaraby.azure-devices.net&sig=gYbnD7TYnuYGaiHS2TNAJ3bHiJ6fbTPDYcqq1clMAGc%3D&se=1873684081&skn=iothubowner'}
+                                  'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                               )
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
