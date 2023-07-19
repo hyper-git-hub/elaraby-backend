@@ -1,0 +1,5 @@
+-----------Sactiviy_queuetart time 2023-07-19 06:15:06.698558------------
+column iof_activityqueue.is_on does not exist
+LINE 1: ...", "iof_activityqueue"."activity_check_point_id", "iof_activ...
+                                                             ^
+

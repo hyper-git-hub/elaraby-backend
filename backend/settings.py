@@ -322,3 +322,28 @@ config_firebase = {
 # )
 #------------------------------------x-content-type-----------------------------------------------
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+CRONJOBS = [
+    (
+    '0 * * * *', 'hypernet.cron_task.make_iop_queue', '>> '  +
+        os.path.join(BASE_DIR,"cronlogs/make_iop_queue.log")),
+
+    ('*/1 * * * *', 'hypernet.cron_task.create_appliance_activity',
+     '>> ' + os.path.join(BASE_DIR,"cronlogs/create_appliance_activity.log")),
+
+    ('*/1 * * * *', 'hypernet.cron_task.check_sleep_mode',
+     '>> '+ os.path.join(BASE_DIR,"cronlogs/check_sleep_mode.log")),
+
+    ('*/1 * * * *', 'hypernet.cron_task.updated_complete_activity',
+     '>> ' + os.path.join(BASE_DIR,"cronlogs/updated_complete_activity.log")),
+
+    ('*/1 * * * *', 'iop.crons.crons.appliance_aggregation',
+     '>> ' + os.path.join(BASE_DIR,"cronlogs/appliance_aggregation.log")),
+
+    ('*/4 * * * *', 'hypernet.cron_task.process_iop_data',
+     '>> ' + os.path.join(BASE_DIR,"cronlogs/process_iop_data.log")),
+
+    ('0 * * * *', 'iop.crons.crons.energy_consumption',
+     '>> ' + os.path.join(BASE_DIR,"cronlogs/energy_consumption.log")),
+
+]
