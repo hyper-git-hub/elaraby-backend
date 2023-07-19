@@ -1,6 +1,6 @@
 DATABASE_NAME = postgres
 DATABASE_USER=postgres
 DATABASE_PASSWORD=941402318f2e37b8
-DATABASE_HOST=srv-captain--backend-db:5432
+DATABASE_HOST=srv-captain--backend-db
 DATABASE_PORT=5432
 
