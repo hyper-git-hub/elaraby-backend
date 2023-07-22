@@ -1697,7 +1697,7 @@ def set_device_temperature_to_idle(ent, temp):  # util for setting stt of device
 
                             )
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
-        if res.status_code.startswith("20"):
+        if str(res.status_code).startswith("20"):
             print("Success set_device_temperature_to_idle")
         else:
             signal_r_failure(res, ent, temp)
