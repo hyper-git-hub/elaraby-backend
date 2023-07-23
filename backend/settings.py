@@ -46,6 +46,9 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "Authorization",
+    "X-Content-Type-Options",
+    "Referer",
+
 ]
 
 CORS_ALLOW_METHODS = [
