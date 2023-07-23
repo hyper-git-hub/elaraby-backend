@@ -784,7 +784,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
         print("RESPONSE disable mode is true: ", res.status_code)
         signal_r_failure(res, obj, temp)
 
-        print("BELOW SIGNALR FAILURE CALL AT THE END")
+        print("BELOW SIGNALR FAILURE CALL AT THE END - set_device_temperature_for_manual_mode")
         return res.status_code
     except Exception as f:
         print(f)
@@ -804,7 +804,7 @@ def set_device_temperature_for_manual_mode(obj, temp):  # util for setting stt o
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
         signal_r_failure(res, obj, temp)
 
-        print("BELOW SIGNALR FAILURE CALL AT THE END")
+        print("BELOW SIGNALR FAILURE CALL AT THE END - set_device_temperature_for_manual_mode except")
         return res.status_code
 
         return res.status_code
@@ -876,7 +876,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
             signal_r_failure(res, ent, temp)
 
-            print("BELOW SIGNALR FAILURE CALL AT THE END")
+            print("BELOW SIGNALR FAILURE CALL AT THE END - set_device_temperature")
             return res.status_code
         except Exception as f:
             print(f)
@@ -897,7 +897,7 @@ def set_device_temperature(obj, temp, ent=None):  # util for setting stt of devi
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
             signal_r_failure(res, ent, temp)
 
-            print("BELOW SIGNALR FAILURE CALL AT THE END")
+            print("BELOW SIGNALR FAILURE CALL AT THE END - set_device_temperature")
             return res.status_code
 
             return res.status_code
@@ -929,7 +929,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
 
         retry_mechanism_signal_r_failure(res, obj.primary_entity, temp)
-        print("BELOW SIGNALR FAILURE CALL AT THE END")
+        print("BELOW SIGNALR FAILURE CALL AT THE END - retry_mechanism_set_device_temperature")
         return res.status_code
     else:
         try:
@@ -949,7 +949,7 @@ def retry_mechanism_set_device_temperature(obj, temp, ent=None):  # util for set
             print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
             retry_mechanism_signal_r_failure(res, ent, temp)
 
-            print("BELOW SIGNALR FAILURE CALL AT THE END")
+            print("BELOW SIGNALR FAILURE CALL AT THE END - retry_mechanism_set_device_temperature")
             return res.status_code
         except Exception as f:
             print(f)
@@ -974,7 +974,7 @@ def retry_mechanism_signal_r_failure(signal_r_response, device, temperature):
 
 def signal_r_failure(signal_r_response, device, temperature):
     try:
-        print('device in try cash   ', device)
+        print('device handling signal_r_failure', device)
         row_to_update = ReconfigurationTable.objects.get(device=device)
         row_to_update.failure_code = signal_r_response.status_code
         row_to_update.temperature_set = temperature
