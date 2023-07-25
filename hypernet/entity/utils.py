@@ -1686,6 +1686,7 @@ def set_device_temperature_to_idle(ent, temp):  # util for setting stt of device
     try:
         print('ent device:  ', ent.device_name.device_id)
         url = 'https://IoTHWLabs.azure-devices.net/twins/{}/methods?api-version=2018-06-30'.format(ent.device_name.device_id)
+        print("temperature before: ", temp)
 
         print("URL : ", url)
         res = requests.post(url=url,
@@ -1696,6 +1697,7 @@ def set_device_temperature_to_idle(ent, temp):  # util for setting stt of device
                                 'Authorization': 'SharedAccessSignature sr=IoTHWLabs.azure-devices.net&sig=5EeO2kvTkr0OgO8tS9OKFT9%2Bbam%2B8MIyABNYXZqKpwg%3D&se=1721152990&skn=iothubowner'}
 
                             )
+        print("temperature after: ", temp)
         print("RESPONSE CODE FROM SIGNALR HIT: ", res.status_code)
         signal_r_failure(res, ent, temp)
         print("BELOW SIGNALR FAILURE CALL AT THE END - set_device_temperature_to_idle")
