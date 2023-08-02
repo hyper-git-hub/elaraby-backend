@@ -10,6 +10,10 @@ COPY requirements.txt .
 
 RUN pip install -r requirements.txt
 
+RUN apt update
+
+RUN apt install cron -y
+
 COPY . .
 
 RUN cp env-dev .env
