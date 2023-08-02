@@ -2902,14 +2902,14 @@ def check_desired_temperature(activity_queue):
                 activity_queue.delete()
                 return True
             except Exception as e:
-                # user = User.objects.get(id=activity_queue.activity_schedule.modified_by.id)
-                # event_type=enum.get_event_type_mode(event_types=int(activity_queue.activity_schedule.action_items))
-                # send_notification_violations(
-                #             None, driver_id=None,value=3,
-                #             customer_id=activity_queue.customer.id,
-                #             module_id=activity_queue.module.id,description=str(activity_queue.id),
-                #             title="Your time of {} {} has arrived for {}  but the appliance is not ready yet.".format(event_type,activity_queue.activity_schedule.activity_route.lower(),activity_queue.primary_entity.name),
-                #             users_list=[user])
+                user = User.objects.get(id=activity_queue.activity_schedule.modified_by.id)
+                event_type=enum.get_event_type_mode(event_types=int(activity_queue.activity_schedule.action_items))
+                send_notification_violations(
+                            None, driver_id=None,value=3,
+                            customer_id=activity_queue.customer.id,
+                            module_id=activity_queue.module.id,description=str(activity_queue.id),
+                            title="Your time of {} {} has arrived for {}  but the appliance is not ready yet.".format(event_type,activity_queue.activity_schedule.activity_route.lower(),activity_queue.primary_entity.name),
+                            users_list=[user])
                 activity = util_create_activity(activity_queue, None, IopOptionsEnums.IOP_SCHEDULE_FAILED, None)
                 activity_queue.activity_schedule.schedule_activity_status = Options.objects.get(id=OptionsEnum.INACTIVE)
                 activity_queue.activity_schedule.save()
