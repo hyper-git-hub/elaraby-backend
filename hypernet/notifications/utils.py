@@ -131,7 +131,7 @@ def update_alert_flag_status(u_id, c_id, m_id):
 def intercept_violations(sender, instance, **kwargs):
     from hypernet.enums import DeviceTypeEntityEnum, IOFOptionsEnum
     # one_signal_rest_key = "NGZjYTJiOGUtNzBmOS00MDgxLWE1NjctOGZkZjg3NGVlMTdh"
-    one_signal_rest_key = "ZjEwNDM3NmItMjcxOS00ZDlkLWJjNmQtNDFhMzdjMWI2OGY3" # production key
+    one_signal_rest_key = "OGQ5OGQ4YWYtMmQzNS00NTEyLWIyNjgtNDNiMzRmZGM3YmIz" # production key
     try:
         firebase = pyrebase.initialize_app(settings.config_firebase)
         db = firebase.database()
@@ -163,8 +163,8 @@ def intercept_violations(sender, instance, **kwargs):
 
 
     elif one_signal_rest_key and instance.activity is None and instance.status.id == OptionsEnum.ACTIVE:
-        app_id = '3d9e70b0-11ac-4375-9dee-6fa5036d2591'
-        rest_key = 'ZjEwNDM3NmItMjcxOS00ZDlkLWJjNmQtNDFhMzdjMWI2OGY3' # production key
+        app_id = '32ab0b4c-5ae3-4bfa-add6-3bca9ad760d6'
+        rest_key = 'OGQ5OGQ4YWYtMmQzNS00NTEyLWIyNjgtNDNiMzRmZGM3YmIz' # production key
         # app_id = 'f4201e3f-8a83-4e49-9936-59a9cb302be2'
         # rest_key = 'NGZjYTJiOGUtNzBmOS00MDgxLWE1NjctOGZkZjg3NGVlMTdh'
         for user in instance.user.all():
